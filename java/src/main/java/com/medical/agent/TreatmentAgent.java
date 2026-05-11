@@ -3,22 +3,24 @@ package com.medical.agent;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medical.model.ClinicalState;
+import com.medical.service.LlmService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
-/**
- * Treatment Agent — Generates evidence-based treatment plans with drug interaction checks.
- */
+//1. Treatment Agent - 治疗方案推荐器（角色类比：临床药剂师）
+//2. 职责：根据诊断和患者信息生成循证治疗方案，检查药物交互
+//3. 读取：state.patientInfo, state.diagnosis；写入：state.treatmentPlan
 @Slf4j
 @Component
 public class TreatmentAgent {
 
-    private final ChatClient chatClient;
+    //4. 依赖注入LLM服务和JSON解析器
+    private final LlmService llmService;
     private final ObjectMapper objectMapper;
 
+    //5. System Prompt - 告诉LLM扮演临床药剂师，生成治疗方案JSON
     private static final String SYSTEM_PROMPT = """
         You are an expert clinical pharmacologist. Given diagnosis and patient data, provide
         a treatment plan as JSON with: diagnosis_addressed, medications (array with drug_name,
@@ -28,33 +30,35 @@ public class TreatmentAgent {
         evidence_references. Check current medications for interactions. Return ONLY valid JSON.
         """;
 
-    public TreatmentAgent(ChatClient.Builder chatClientBuilder, ObjectMapper objectMapper) {
-        this.chatClient = chatClientBuilder.build();
+    public TreatmentAgent(LlmService llmService, ObjectMapper objectMapper) {
+        this.llmService = llmService;
         this.objectMapper = objectMapper;
     }
 
+    //6. 核心处理方法
     public ClinicalState process(ClinicalState state) {
         log.info("TreatmentAgent processing");
         state.setCurrentAgent("treatment");
 
+        //7. 依赖检查：必须有Diagnosis Agent生成的diagnosis
         if (state.getDiagnosis() == null) {
             state.getErrors().add("No diagnosis available for treatment planning");
             return state;
         }
 
         try {
+            //8. 构建上下文：患者信息 + 诊断结果
             Map<String, Object> context = Map.of(
                     "patient_info", state.getPatientInfo() != null ? state.getPatientInfo() : Map.of(),
                     "diagnosis", state.getDiagnosis()
             );
             String contextJson = objectMapper.writeValueAsString(context);
 
-            String response = chatClient.prompt()
-                    .system(SYSTEM_PROMPT)
-                    .user("Clinical context:\n\n" + contextJson + "\n\nProvide treatment plan.")
-                    .call()
-                    .content();
+            //9. 调用LLM生成治疗方案
+            String response = llmService.generate(SYSTEM_PROMPT, 
+                    "Clinical context:\n\n" + contextJson + "\n\nProvide treatment plan.");
 
+            //10. 清理并解析响应
             String content = cleanJsonResponse(response);
             Map<String, Object> treatment = objectMapper.readValue(content, new TypeReference<>() {});
             state.setTreatmentPlan(treatment);
@@ -68,6 +72,7 @@ public class TreatmentAgent {
         return state;
     }
 
+    //11. 清理LLM响应中的markdown代码块
     private String cleanJsonResponse(String response) {
         String content = response.trim();
         if (content.startsWith("```")) {

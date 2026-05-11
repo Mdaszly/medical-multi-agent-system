@@ -2,20 +2,29 @@ spring:
   application:
     name: clinical-decision-system
   datasource:
-    url: jdbc:postgresql://localhost:5432/clinical_decision
-    username: postgres
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:clinical_decision}
+    username: ${POSTGRES_USER:postgres}
     password: ${POSTGRES_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      connection-timeout: 30000
+      maximum-pool-size: 10
   jpa:
     hibernate:
       ddl-auto: update
     show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    open-in-view: false
   ai:
     openai:
-      api-key: ${OPENAI_API_KEY:}
+      api-key: ${DASHSCOPE_API_KEY:}
+      base-url: ${DASHSCOPE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
       chat:
         options:
-          model: gpt-4o-mini
+          model: ${DASHSCOPE_MODEL:qwen-max}
           temperature: 0.2
 
 server:
@@ -26,3 +35,17 @@ management:
     web:
       exposure:
         include: health,info,metrics
+
+app:
+  llm:
+    provider: dashscope
+  dashscope:
+    api-key: ${DASHSCOPE_API_KEY:}
+    model: ${DASHSCOPE_MODEL:qwen-max}
+  neo4j:
+    uri: ${NEO4J_URI:bolt://localhost:7687}
+    username: ${NEO4J_USER:neo4j}
+    password: ${NEO4J_PASSWORD:neo4jpass}
+  redis:
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}

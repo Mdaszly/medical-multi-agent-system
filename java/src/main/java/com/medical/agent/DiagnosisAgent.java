@@ -3,23 +3,24 @@ package com.medical.agent;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medical.model.ClinicalState;
+import com.medical.service.LlmService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
-/**
- * Diagnosis Agent — Generates differential diagnosis from structured patient data.
- * Uses GraphRAG knowledge base when available for evidence-based reasoning.
- */
+//1. Diagnosis Agent - 鉴别诊断器（角色类比：诊断医生）
+//2. 职责：基于结构化患者信息生成带置信度的鉴别诊断列表
+//3. 读取：state.patientInfo；写入：state.diagnosis, state.needsMoreInfo
 @Slf4j
 @Component
 public class DiagnosisAgent {
 
-    private final ChatClient chatClient;
+    //4. 依赖注入LLM服务和JSON解析器
+    private final LlmService llmService;
     private final ObjectMapper objectMapper;
 
+    //5. System Prompt - 告诉LLM扮演诊断专家，输出鉴别诊断JSON
     private static final String SYSTEM_PROMPT = """
         You are an expert diagnostician. Given structured patient information, provide a
         comprehensive differential diagnosis as JSON with: primary_diagnosis (disease_name,
@@ -28,37 +29,41 @@ public class DiagnosisAgent {
         Confidence scores 0-1. Provide at least 2-3 differentials. Return ONLY valid JSON.
         """;
 
-    public DiagnosisAgent(ChatClient.Builder chatClientBuilder, ObjectMapper objectMapper) {
-        this.chatClient = chatClientBuilder.build();
+    public DiagnosisAgent(LlmService llmService, ObjectMapper objectMapper) {
+        this.llmService = llmService;
         this.objectMapper = objectMapper;
     }
 
+    //6. 核心处理方法
     public ClinicalState process(ClinicalState state) {
         log.info("DiagnosisAgent processing");
         state.setCurrentAgent("diagnosis");
 
+        //7. 依赖检查：必须有Intake Agent生成的patientInfo
         if (state.getPatientInfo() == null) {
             state.getErrors().add("No patient info available for diagnosis");
-            state.setNeedsMoreInfo(true);
+            state.setNeedsMoreInfo(true);  //8. 标记需要补充信息
             return state;
         }
 
         try {
+            //9. 将患者信息序列化为JSON字符串
             String patientJson = objectMapper.writeValueAsString(state.getPatientInfo());
 
-            String response = chatClient.prompt()
-                    .system(SYSTEM_PROMPT)
-                    .user("Patient information:\n\n" + patientJson + "\n\nProvide differential diagnosis.")
-                    .call()
-                    .content();
+            //10. 调用LLM生成鉴别诊断
+            String response = llmService.generate(SYSTEM_PROMPT, 
+                    "Patient information:\n\n" + patientJson + "\n\nProvide differential diagnosis.");
 
+            //11. 清理并解析响应
             String content = cleanJsonResponse(response);
             Map<String, Object> diagnosis = objectMapper.readValue(content, new TypeReference<>() {});
 
+            //12. 提取needs_more_info标志（用于Pipeline条件路由）
             Boolean needsMore = (Boolean) diagnosis.remove("needs_more_info");
             state.setDiagnosis(diagnosis);
             state.setNeedsMoreInfo(needsMore != null && needsMore);
 
+            //13. 日志输出主诊断结果
             log.info("DiagnosisAgent success, primary: {}",
                     getNestedValue(diagnosis, "primary_diagnosis", "disease_name"));
         } catch (Exception e) {
@@ -70,6 +75,7 @@ public class DiagnosisAgent {
         return state;
     }
 
+    //14. 获取嵌套Map中的值（支持多级key）
     @SuppressWarnings("unchecked")
     private Object getNestedValue(Map<String, Object> map, String... keys) {
         Object current = map;
@@ -80,6 +86,7 @@ public class DiagnosisAgent {
         return current;
     }
 
+    //15. 清理LLM响应中的markdown代码块
     private String cleanJsonResponse(String response) {
         String content = response.trim();
         if (content.startsWith("```")) {
