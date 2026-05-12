@@ -63,6 +63,10 @@ public class DiagnosisAgent {
             state.setDiagnosis(diagnosis);
             state.setNeedsMoreInfo(needsMore != null && needsMore);
 
+            // needs_more_info 是LLM判断是否需要更多患者信息
+            // 如果为true，Pipeline会路由到人工问诊节点
+            // remove() 既获取值又从Map中删除这个字段（不保存到最终结果）
+
             //13. 日志输出主诊断结果
             log.info("DiagnosisAgent success, primary: {}",
                     getNestedValue(diagnosis, "primary_diagnosis", "disease_name"));
@@ -75,7 +79,8 @@ public class DiagnosisAgent {
         return state;
     }
 
-    //14. 获取嵌套Map中的值（支持多级key）
+    // 14. 获取嵌套Map中的值（支持多级key）
+    // getNestedValue 防御性编程：避免 NullPointerException，当LLM输出格式不规范时安全降级
     @SuppressWarnings("unchecked")
     private Object getNestedValue(Map<String, Object> map, String... keys) {
         Object current = map;

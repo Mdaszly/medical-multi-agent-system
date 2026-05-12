@@ -9,15 +9,6 @@ spring:
     hikari:
       connection-timeout: 30000
       maximum-pool-size: 10
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: false
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
-    open-in-view: false
   ai:
     openai:
       api-key: ${DASHSCOPE_API_KEY:}
@@ -27,6 +18,18 @@ spring:
           model: ${DASHSCOPE_MODEL:qwen-max}
           temperature: 0.2
 
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: isDelete
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
 server:
   port: 8080
 
@@ -35,6 +38,15 @@ management:
     web:
       exposure:
         include: health,info,metrics
+
+sa-token:
+  token-name: Authorization
+  timeout: 604800
+  activity-timeout: -1
+  is-concurrent: true
+  is-share: true
+  token-style: uuid
+  is-log: true
 
 app:
   llm:
