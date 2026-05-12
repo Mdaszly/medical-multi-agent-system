@@ -14,6 +14,7 @@ public enum ErrorCode {
     NO_PERMISSION(40300, "无权限访问"),
     ACCOUNT_DISABLED(40301, "账号已被禁用"),
     ACCOUNT_LOCKED(40302, "账号已被锁定"),
+    NO_AUTH(40303, "无权限"),
     USER_NOT_FOUND(40400, "用户不存在"),
     USER_ALREADY_EXISTS(40401, "用户已存在"),
     SYSTEM_ERROR(50000, "系统内部错误");

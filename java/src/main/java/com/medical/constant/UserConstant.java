@@ -7,6 +7,7 @@ public class UserConstant {
 
     public static final String USER_ROLE = "user";
     public static final String ADMIN_ROLE = "admin";
+    public static final String DOCTOR_ROLE = "doctor";
 
     public static final Integer STATUS_NORMAL = 1;
     public static final Integer STATUS_DISABLED = 0;
@@ -23,4 +24,8 @@ public class UserConstant {
 
     public static final Integer MAX_LOGIN_RETRY = 5;
     public static final Long LOCK_DURATION_MINUTES = 30L;
+
+    public static final Integer DOCTOR_STATUS_ONLINE = 1;
+    public static final Integer DOCTOR_STATUS_OFFLINE = 0;
+    public static final Integer DOCTOR_STATUS_LEFT = 2;
 }

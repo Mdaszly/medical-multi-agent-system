@@ -31,7 +31,21 @@ public class User {
 
     private LocalDate birthDate;
 
+    private String idCard;
+
+    private String emergencyContact;
+
+    private String emergencyPhone;
+
+    private String medicalHistory;
+
+    private String allergyHistory;
+
     private Integer userStatus;
+
+    private LocalDateTime lastLoginTime;
+
+    private String lastLoginIp;
 
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
