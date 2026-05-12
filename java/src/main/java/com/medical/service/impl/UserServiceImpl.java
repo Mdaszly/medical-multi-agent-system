@@ -122,12 +122,6 @@ public class UserServiceImpl implements UserService {
             checkEmailExists(request.getEmail(), id);
             user.setEmail(request.getEmail());
         }
-        if (request.getEmergencyContact() != null) {
-            user.setEmergencyContact(request.getEmergencyContact());
-        }
-        if (request.getEmergencyPhone() != null) {
-            user.setEmergencyPhone(request.getEmergencyPhone());
-        }
         if (request.getUserStatus() != null) {
             user.setUserStatus(request.getUserStatus());
         }
@@ -154,13 +148,6 @@ public class UserServiceImpl implements UserService {
         if (request.getGender() != null) {
             user.setGender(request.getGender());
         }
-        if (request.getEmergencyContact() != null) {
-            user.setEmergencyContact(request.getEmergencyContact());
-        }
-        if (request.getEmergencyPhone() != null) {
-            user.setEmergencyPhone(request.getEmergencyPhone());
-        }
-        
         user.setUpdateTime(LocalDateTime.now());
         
         int result = userMapper.updateById(user);

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.medical.mapper.ScheduleMapper">
+
+    <select id="selectByDoctorIdAndDateRange" resultType="com.medical.model.entity.Schedule">
+        SELECT * FROM schedule
+        WHERE doctor_id = #{doctorId}
+          AND schedule_date >= #{startDate}
+          AND schedule_date <= #{endDate}
+          AND is_delete = 0
+        ORDER BY schedule_date, shift_type
+    </select>
+
+    <select id="selectByDepartmentAndDate" resultType="com.medical.model.entity.Schedule">
+        SELECT * FROM schedule
+        WHERE department = #{department}
+          AND schedule_date = #{scheduleDate}
+          AND status = 1
+          AND is_delete = 0
+        ORDER BY shift_type
+    </select>
+
+    <select id="selectOnDutyDoctors" resultType="com.medical.model.entity.Schedule">
+        SELECT * FROM schedule
+        WHERE schedule_date = #{scheduleDate}
+          AND status = 1
+          AND is_delete = 0
+        <if test="shiftType != null and shiftType != ''">
+            AND shift_type = #{shiftType}
+        </if>
+        ORDER BY department, shift_type, doctor_name
+    </select>
+
+    <select id="countByDoctorIdAndDateAndShift" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM schedule
+        WHERE doctor_id = #{doctorId}
+          AND schedule_date = #{scheduleDate}
+          AND shift_type = #{shiftType}
+          AND is_delete = 0
+    </select>
+
+    <update id="updateCurrentAppointments">
+        UPDATE schedule
+        SET current_appointments = current_appointments + #{delta}
+        WHERE id = #{id}
+          AND is_delete = 0
+    </update>
+
+</mapper>

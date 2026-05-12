@@ -38,7 +38,6 @@ public class AdminVO {
         vo.setEmail(user.getEmail());
         vo.setUserRole(user.getUserRole());
         vo.setUserStatus(user.getUserStatus());
-        vo.setLastLoginTime(user.getLastLoginTime());
         vo.setCreateTime(user.getCreateTime());
         return vo;
     }
