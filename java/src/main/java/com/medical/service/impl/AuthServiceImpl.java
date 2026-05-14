@@ -127,7 +127,7 @@ public class AuthServiceImpl implements AuthService {
             doctor.setDescription(request.getUserName());
             doctor.setPhone(request.getPhone());
             doctor.setEmail(request.getEmail());
-            doctor.setWorkStatus(UserConstant.DOCTOR_STATUS_OFFLINE);
+            doctor.setWorkStatus(UserConstant.DOCTOR_STATUS_ONLINE);
             doctor.setUserAccount(userAccount);
             doctor.setUserPassword(encryptedPassword);
             doctor.setSalt(salt);

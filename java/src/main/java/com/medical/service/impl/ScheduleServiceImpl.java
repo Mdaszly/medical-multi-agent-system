@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.medical.common.ErrorCode;
+import com.medical.common.RedisCacheUtil;
+import com.medical.constant.RedisKeyConstant;
 import com.medical.constant.ScheduleConstant;
 import com.medical.constant.UserConstant;
 import com.medical.exception.BusinessException;
@@ -27,6 +29,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -36,18 +40,32 @@ public class ScheduleServiceImpl implements ScheduleService {
 
     private final ScheduleMapper scheduleMapper;
     private final DoctorMapper doctorMapper;
+    private final RedisCacheUtil redisCacheUtil;
 
     @Override
     public ScheduleVO getScheduleById(Long id) {
+        String cacheKey = String.format(RedisKeyConstant.SCHEDULE_ID, id);
+        
+        ScheduleVO cached = redisCacheUtil.get(cacheKey, ScheduleVO.class);
+        if (cached != null) {
+            log.debug("缓存命中: {}", cacheKey);
+            return cached;
+        }
+        
         Schedule schedule = getScheduleEntityById(id);
-        return ScheduleVO.fromEntity(schedule);
+        ScheduleVO result = ScheduleVO.fromEntity(schedule);
+        
+        redisCacheUtil.set(cacheKey, result, RedisKeyConstant.TTL_2_HOURS);
+        log.debug("缓存写入: {}", cacheKey);
+        
+        return result;
     }
 
     @Override
     public Schedule getScheduleEntityById(Long id) {
         ThrowUtils.throwIf(id == null || id <= 0, ErrorCode.PARAM_ERROR, "排班ID无效");
         Schedule schedule = scheduleMapper.selectById(id);
-        ThrowUtils.throwIf(schedule == null, ErrorCode.USER_NOT_FOUND);
+        ThrowUtils.throwIf(schedule == null, ErrorCode.SCHEDULE_NOT_FOUND);
         return schedule;
     }
 
@@ -119,13 +137,29 @@ public class ScheduleServiceImpl implements ScheduleService {
         ThrowUtils.throwIf(!StringUtils.hasText(department), ErrorCode.PARAM_ERROR, "科室不能为空");
         ThrowUtils.throwIf(scheduleDate == null, ErrorCode.PARAM_ERROR, "排班日期不能为空");
 
+        String cacheKey = String.format(RedisKeyConstant.SCHEDULE_DEPT_DATE, department, scheduleDate);
+        
+        @SuppressWarnings("unchecked")
+        List<ScheduleVO> cached = redisCacheUtil.get(cacheKey, List.class);
+        if (cached != null && !cached.isEmpty()) {
+            log.debug("缓存命中: {}", cacheKey);
+            return cached;
+        }
+
         List<Schedule> schedules = scheduleMapper.selectByDepartmentAndDate(department, scheduleDate);
 
-        return schedules.stream()
+        List<ScheduleVO> result = schedules.stream()
                 .map(ScheduleVO::fromEntity)
                 .sorted(Comparator.comparing(ScheduleVO::getShiftType,
                         Comparator.comparingInt(ScheduleConstant::getShiftOrder)))
                 .collect(Collectors.toList());
+
+        if (!result.isEmpty()) {
+            redisCacheUtil.set(cacheKey, result, RedisKeyConstant.TTL_2_HOURS);
+            log.debug("缓存写入: {}", cacheKey);
+        }
+
+        return result;
     }
 
     @Override
@@ -163,6 +197,10 @@ public class ScheduleServiceImpl implements ScheduleService {
 
         updateDoctorOnDutyStatus(request.getDoctorId());
 
+        String deptDateKey = String.format(RedisKeyConstant.SCHEDULE_DEPT_DATE, 
+                doctor.getDepartment(), request.getScheduleDate());
+        redisCacheUtil.delete(deptDateKey);
+
         log.info("Schedule added successfully: id={}", schedule.getId());
         return ScheduleVO.fromEntity(schedule);
     }
@@ -175,6 +213,8 @@ public class ScheduleServiceImpl implements ScheduleService {
         Schedule schedule = getScheduleEntityById(id);
 
         Long oldDoctorId = schedule.getDoctorId();
+        String oldDepartment = schedule.getDepartment();
+        LocalDate oldDate = schedule.getScheduleDate();
 
         if (request.getDoctorId() != null && !request.getDoctorId().equals(oldDoctorId)) {
             Doctor doctor = doctorMapper.selectById(request.getDoctorId());
@@ -223,6 +263,8 @@ public class ScheduleServiceImpl implements ScheduleService {
             updateDoctorOnDutyStatus(request.getDoctorId());
         }
 
+        deleteScheduleCache(schedule, oldDepartment, oldDate);
+
         log.info("Schedule updated successfully: id={}", id);
         return ScheduleVO.fromEntity(schedule);
     }
@@ -234,6 +276,8 @@ public class ScheduleServiceImpl implements ScheduleService {
 
         Schedule schedule = getScheduleEntityById(id);
         Long doctorId = schedule.getDoctorId();
+        String department = schedule.getDepartment();
+        LocalDate scheduleDate = schedule.getScheduleDate();
 
         schedule.setIsDelete(UserConstant.IS_DELETED);
         schedule.setUpdateTime(LocalDateTime.now());
@@ -242,6 +286,8 @@ public class ScheduleServiceImpl implements ScheduleService {
         ThrowUtils.throwIf(result == 0, ErrorCode.SYSTEM_ERROR, "删除排班失败");
 
         updateDoctorOnDutyStatus(doctorId);
+
+        deleteScheduleCache(schedule, department, scheduleDate);
 
         log.info("Schedule deleted successfully: id={}", id);
     }
@@ -254,6 +300,7 @@ public class ScheduleServiceImpl implements ScheduleService {
         ThrowUtils.throwIf(requests == null || requests.isEmpty(), ErrorCode.PARAM_ERROR, "排班列表不能为空");
 
         Set<Long> doctorIds = new HashSet<>();
+        Set<String> deptDateKeys = new HashSet<>();
 
         for (ScheduleAddRequest request : requests) {
             validateScheduleRequest(request);
@@ -270,11 +317,17 @@ public class ScheduleServiceImpl implements ScheduleService {
             Schedule schedule = buildSchedule(request, doctor);
             scheduleMapper.insert(schedule);
             doctorIds.add(request.getDoctorId());
+            
+            String key = String.format(RedisKeyConstant.SCHEDULE_DEPT_DATE, 
+                    doctor.getDepartment(), request.getScheduleDate());
+            deptDateKeys.add(key);
         }
 
         for (Long doctorId : doctorIds) {
             updateDoctorOnDutyStatus(doctorId);
         }
+
+        redisCacheUtil.deleteAll(deptDateKeys);
 
         log.info("Batch schedules added successfully: count={}", requests.size());
     }
@@ -308,6 +361,10 @@ public class ScheduleServiceImpl implements ScheduleService {
             doctor.setWorkStatus(onDutyStatus);
             doctor.setUpdateTime(LocalDateTime.now());
             doctorMapper.updateById(doctor);
+            
+            String statusKey = String.format(RedisKeyConstant.DOCTOR_STATUS, doctorId);
+            redisCacheUtil.set(statusKey, onDutyStatus, RedisKeyConstant.TTL_5_MINUTES);
+            
             log.info("Doctor on duty status updated: doctorId={}, status={}", doctorId, onDutyStatus);
         }
     }
@@ -382,6 +439,22 @@ public class ScheduleServiceImpl implements ScheduleService {
         }
 
         return result;
+    }
+
+    private void deleteScheduleCache(Schedule schedule, String oldDepartment, LocalDate oldDate) {
+        List<String> keys = new ArrayList<>();
+        
+        keys.add(String.format(RedisKeyConstant.SCHEDULE_ID, schedule.getId()));
+        keys.add(String.format(RedisKeyConstant.SCHEDULE_DEPT_DATE, oldDepartment, oldDate));
+        keys.add(String.format(RedisKeyConstant.SCHEDULE_DOCTOR_DATE, schedule.getDoctorId(), oldDate));
+        keys.add(String.format(RedisKeyConstant.SCHEDULE_DEPT_DATE, schedule.getDepartment(), schedule.getScheduleDate()));
+        keys.add(String.format(RedisKeyConstant.SCHEDULE_DOCTOR_DATE, schedule.getDoctorId(), schedule.getScheduleDate()));
+
+        redisCacheUtil.deleteAll(keys);
+        log.debug("缓存删除: {}", keys);
+
+        CompletableFuture.delayedExecutor(500, TimeUnit.MILLISECONDS)
+                .execute(() -> redisCacheUtil.deleteAll(keys));
     }
 
     private void validateScheduleRequest(ScheduleAddRequest request) {
