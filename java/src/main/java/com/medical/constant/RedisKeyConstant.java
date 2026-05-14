@@ -2,9 +2,22 @@ package com.medical.constant;
 
 import java.time.Duration;
 
+/**
+ * Redis键常量类
+ * 
+ * <p>定义所有Redis缓存键的前缀和过期时间配置。
+ * 使用常量可以避免硬编码，提高代码的可维护性。
+ * 
+ * <p>Redis键命名规范：
+ * - 使用冒号":"分隔层级
+ * - 格式：{模块}:{类型}:{标识}
+ * - 例如：doctor:dept:内科
+ */
 public final class RedisKeyConstant {
 
-    private RedisKeyConstant() {}
+    private RedisKeyConstant() {
+        // 私有构造函数，防止实例化
+    }
 
     /**
      * 用户缓存相关
@@ -14,6 +27,11 @@ public final class RedisKeyConstant {
 
     /**
      * 排班相关Key常量
+     * 
+     * <p>SCHEDULE_ID: 单个排班信息缓存
+     * SCHEDULE_DEPT_DATE: 按科室和日期查询排班列表
+     * SCHEDULE_DOCTOR_DATE: 按医生和日期查询排班列表
+     * SCHEDULE_SLOTS: 号源剩余数量缓存
      */
     public static final String SCHEDULE_ID = "schedule:%d";
     public static final String SCHEDULE_DEPT_DATE = "schedule:dept:%s:date:%s";
@@ -22,9 +40,33 @@ public final class RedisKeyConstant {
 
     /**
      * 医生相关Key常量
+     * 
+     * <p>DOCTOR_STATUS: 医生在岗状态缓存
+     * DOCTOR_ID: 单个医生信息缓存
+     * DOCTOR_DEPT_LIST: 按科室查询医生列表缓存
+     * DOCTOR_DEPT_EMPTY: 空结果缓存（防止缓存穿透）
+     * DOCTOR_LOCK_PREFIX: 分布式锁前缀
      */
     public static final String DOCTOR_STATUS = "doctor:status:%d";
     public static final String DOCTOR_ID = "doctor:%d";
+    public static final String DOCTOR_DEPT_LIST = "doctor:dept:%s";
+    public static final String DOCTOR_DEPT_EMPTY = "doctor:dept:empty:%s";
+    public static final String DOCTOR_LOCK_PREFIX = "lock:doctor:dept:%s";
+
+    /**
+     * 医生缓存TTL配置
+     * 
+     * <p>DOCTOR_CACHE_TTL: 基准过期时间（30分钟）
+     * DOCTOR_CACHE_TTL_MIN: 最小过期时间（25分钟）
+     * DOCTOR_CACHE_TTL_MAX: 最大过期时间（35分钟）
+     * DOCTOR_EMPTY_CACHE_TTL: 空结果缓存过期时间（5分钟）
+     * 
+     * <p>使用随机TTL范围可以防止缓存雪崩。
+     */
+    public static final Duration DOCTOR_CACHE_TTL = Duration.ofMinutes(30);
+    public static final Duration DOCTOR_CACHE_TTL_MIN = Duration.ofMinutes(25);
+    public static final Duration DOCTOR_CACHE_TTL_MAX = Duration.ofMinutes(35);
+    public static final Duration DOCTOR_EMPTY_CACHE_TTL = Duration.ofMinutes(5);
 
     /**
      * 锁相关Key常量
@@ -42,6 +84,9 @@ public final class RedisKeyConstant {
 
     /**
      * 构建用户缓存Key
+     * 
+     * @param userId 用户ID
+     * @return 完整的缓存Key
      */
     public static String buildUserCacheKey(Long userId) {
         return USER_CACHE_PREFIX + userId;

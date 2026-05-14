@@ -51,11 +51,13 @@ management:
 sa-token:
   token-name: Authorization
   timeout: 1800
-  activity-timeout: -1
+  activity-timeout: 1800
   is-concurrent: true
   is-share: true
   token-style: uuid
   is-log: true
+  is-read-session-by-cookie: false
+  dao-type: redis-jackson
 
 app:
   llm:

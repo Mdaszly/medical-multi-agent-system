@@ -50,16 +50,26 @@ CREATE TABLE IF NOT EXISTS schedule (
     doctor_name         VARCHAR(50) NOT NULL,
     department          VARCHAR(50) NOT NULL,
     schedule_date       DATE NOT NULL,
-    morning_slots       VARCHAR(200),
-    afternoon_slots     VARCHAR(200),
-    evening_slots       VARCHAR(200),
+    shift_type          VARCHAR(20) NOT NULL,
+    shift_name          VARCHAR(50),
+    time_range          VARCHAR(50),
+    time_start          VARCHAR(10),
+    time_end            VARCHAR(10),
+    max_appointments    INTEGER DEFAULT 20,
+    current_appointments INTEGER DEFAULT 0,
     status              SMALLINT DEFAULT 1,
+    on_duty_status      SMALLINT DEFAULT 0,
+    description         TEXT,
     create_time         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    update_time         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    update_time         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    is_delete           SMALLINT DEFAULT 0
 );
 
+CREATE UNIQUE INDEX uk_schedule_doctor_date_shift ON schedule(doctor_id, schedule_date, shift_type) WHERE is_delete = 0;
 CREATE INDEX idx_schedule_doctor_id ON schedule(doctor_id);
 CREATE INDEX idx_schedule_date ON schedule(schedule_date);
+CREATE INDEX idx_schedule_department ON schedule(department);
+CREATE INDEX idx_schedule_status ON schedule(status);
 
 -- 创建 doctor 表
 CREATE TABLE IF NOT EXISTS doctor (

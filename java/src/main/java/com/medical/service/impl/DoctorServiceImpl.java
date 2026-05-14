@@ -13,6 +13,7 @@ import com.medical.model.dto.doctor.DoctorQueryRequest;
 import com.medical.model.dto.doctor.DoctorUpdateRequest;
 import com.medical.model.entity.Doctor;
 import com.medical.model.vo.DoctorVO;
+import com.medical.service.DoctorCacheManager;
 import com.medical.service.DoctorService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,12 +25,25 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * 医生服务实现类
+ * 
+ * <p>负责医生信息的CRUD操作，已集成Redis缓存优化。
+ * 核心缓存优化点：
+ * 1. 按科室查询医生列表（热点接口）使用Redis缓存
+ * 2. 医生数据变更时自动删除相关缓存，保证数据一致性
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class DoctorServiceImpl implements DoctorService {
 
     private final DoctorMapper doctorMapper;
+    
+    /**
+     * 医生缓存管理器，提供缓存查询、更新、删除等功能
+     */
+    private final DoctorCacheManager doctorCacheManager;
 
     @Override
     public DoctorVO getDoctorById(Long id) {
@@ -87,38 +101,77 @@ public class DoctorServiceImpl implements DoctorService {
         return doctorPage.convert(DoctorVO::fromEntity);
     }
 
+    /**
+     * 根据科室名称查询医生列表（带缓存）
+     * 
+     * <p>这是核心的缓存优化接口，查询流程：
+     * 1. 调用DoctorCacheManager获取医生列表
+     * 2. 如果缓存命中，直接返回缓存数据
+     * 3. 如果缓存未命中，执行loadDoctorsFromDatabase加载数据
+     * 4. 加载的数据会自动写入缓存
+     * 
+     * @param department 科室名称
+     * @return 医生列表
+     */
     @Override
     public List<DoctorVO> listDoctorByDepartment(String department) {
         log.info("List doctor by department: {}", department);
-        
+
         ThrowUtils.throwIf(!StringUtils.hasText(department), ErrorCode.PARAM_ERROR, "科室不能为空");
-        
+
+        // 使用缓存管理器获取医生列表
+        // 第二个参数是一个Supplier，当缓存未命中时会执行这个函数加载数据
+        return doctorCacheManager.getDoctorListByDepartment(department, () -> loadDoctorsFromDatabase(department));
+    }
+
+    /**
+     * 从数据库加载科室医生列表
+     * 
+     * <p>这是一个私有方法，仅在缓存未命中时被调用。
+     * 查询条件：
+     * - 指定科室
+     * - 工作状态为在线
+     * - 未被删除
+     * - 按职称排序
+     */
+    private List<DoctorVO> loadDoctorsFromDatabase(String department) {
         LambdaQueryWrapper<Doctor> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Doctor::getDepartment, department)
                .eq(Doctor::getWorkStatus, UserConstant.DOCTOR_STATUS_ONLINE)
                .eq(Doctor::getIsDelete, UserConstant.NOT_DELETED)
                .orderByAsc(Doctor::getTitle);
-        
+
         List<Doctor> doctors = doctorMapper.selectList(wrapper);
-        
+
         return doctors.stream()
                 .map(DoctorVO::fromEntity)
                 .collect(Collectors.toList());
     }
 
+    /**
+     * 更新医生信息
+     * 
+     * <p>更新完成后会检查科室是否变更，如果变更则删除新旧科室的缓存，
+     * 确保下次查询时能获取最新数据。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public DoctorVO updateDoctor(Long id, DoctorUpdateRequest request) {
         log.info("Update doctor: id={}, request={}", id, request);
-        
+
         Doctor doctor = getDoctorEntityById(id);
-        
+        // 保存旧科室，用于判断是否需要删除缓存
+        String oldDepartment = doctor.getDepartment();
+
         updateDoctorEntity(doctor, request);
         doctor.setUpdateTime(LocalDateTime.now());
-        
+
         int result = doctorMapper.updateById(doctor);
         ThrowUtils.throwIf(result == 0, ErrorCode.SYSTEM_ERROR, "更新失败");
-        
+
+        // 如果科室发生变化，删除相关缓存
+        evictCacheIfNeeded(oldDepartment, doctor.getDepartment());
+
         log.info("Doctor updated successfully: id={}", id);
         return DoctorVO.fromEntity(doctor);
     }
@@ -152,51 +205,78 @@ public class DoctorServiceImpl implements DoctorService {
         return DoctorVO.fromEntity(doctor);
     }
 
+    /**
+     * 删除医生（逻辑删除）
+     * 
+     * <p>删除后会删除该医生所在科室的缓存，确保数据一致性。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteDoctor(Long id) {
         log.info("Delete doctor: id={}", id);
-        
+
         Doctor doctor = getDoctorEntityById(id);
-        
+        String department = doctor.getDepartment();
+
         doctor.setIsDelete(UserConstant.IS_DELETED);
         doctor.setUpdateTime(LocalDateTime.now());
-        
+
         int result = doctorMapper.updateById(doctor);
         ThrowUtils.throwIf(result == 0, ErrorCode.SYSTEM_ERROR, "删除失败");
-        
+
+        // 删除该科室的缓存
+        doctorCacheManager.evictDepartmentCache(department);
+
         log.info("Doctor deleted successfully: id={}", id);
     }
 
+    /**
+     * 禁用医生账号
+     * 
+     * <p>禁用后医生状态变为离线，会删除相关科室缓存。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void disableDoctor(Long id) {
         log.info("Disable doctor: id={}", id);
-        
+
         Doctor doctor = getDoctorEntityById(id);
-        
+        String department = doctor.getDepartment();
+
         doctor.setWorkStatus(UserConstant.DOCTOR_STATUS_OFFLINE);
         doctor.setUpdateTime(LocalDateTime.now());
-        
+
         int result = doctorMapper.updateById(doctor);
         ThrowUtils.throwIf(result == 0, ErrorCode.SYSTEM_ERROR, "禁用失败");
-        
+
+        // 删除该科室的缓存
+        doctorCacheManager.evictDepartmentCache(department);
+
         log.info("Doctor disabled successfully: id={}", id);
     }
 
+    /**
+     * 启用医生账号
+     * 
+     * <p>启用后医生状态变为在线，会删除相关科室缓存。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void enableDoctor(Long id) {
         log.info("Enable doctor: id={}", id);
-        
+
         Doctor doctor = getDoctorEntityById(id);
-        
+        String department = doctor.getDepartment();
+
         doctor.setWorkStatus(UserConstant.DOCTOR_STATUS_ONLINE);
         doctor.setUpdateTime(LocalDateTime.now());
-        
+
         int result = doctorMapper.updateById(doctor);
         ThrowUtils.throwIf(result == 0, ErrorCode.SYSTEM_ERROR, "启用失败");
-        
+
+        // 删除该科室的缓存
+        doctorCacheManager.evictDepartmentCache(department);
+
         log.info("Doctor enabled successfully: id={}", id);
     }
 
@@ -307,6 +387,21 @@ public class DoctorServiceImpl implements DoctorService {
                .eq(Doctor::getIsDelete, UserConstant.NOT_DELETED);
         if (doctorMapper.exists(wrapper)) {
             throw new BusinessException(ErrorCode.USER_ALREADY_EXISTS, "该执业证书编号已存在");
+        }
+    }
+
+    /**
+     * 根据科室变更情况决定是否删除缓存
+     * 
+     * <p>当医生的科室发生变化时，需要删除新旧科室的缓存，
+     * 确保缓存数据的一致性。
+     */
+    private void evictCacheIfNeeded(String oldDepartment, String newDepartment) {
+        if (oldDepartment != null) {
+            doctorCacheManager.evictDepartmentCache(oldDepartment);
+        }
+        if (newDepartment != null && !newDepartment.equals(oldDepartment)) {
+            doctorCacheManager.evictDepartmentCache(newDepartment);
         }
     }
 }

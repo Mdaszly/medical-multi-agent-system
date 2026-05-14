@@ -4,8 +4,11 @@ import com.medical.common.RedisCacheUtil;
 import com.medical.constant.RedisKeyConstant;
 import com.medical.constant.ScheduleConstant;
 import com.medical.constant.UserConstant;
+import com.medical.mapper.DoctorMapper;
 import com.medical.mapper.ScheduleMapper;
+import com.medical.model.entity.Doctor;
 import com.medical.model.entity.Schedule;
+import com.medical.model.vo.DoctorVO;
 import com.medical.model.vo.ScheduleVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +17,10 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -22,6 +28,7 @@ import java.util.List;
 public class CacheWarmupTask {
 
     private final ScheduleMapper scheduleMapper;
+    private final DoctorMapper doctorMapper;
     private final RedisCacheUtil redisCacheUtil;
 
     @Scheduled(cron = "0 0 5 * * ?")
@@ -113,5 +120,60 @@ public class CacheWarmupTask {
         }
 
         log.debug("【定时任务】医生状态缓存同步完成");
+    }
+
+    @Scheduled(cron = "0 30 5 * * ?")
+    public void warmupDoctorCache() {
+        log.info("【定时任务】医生缓存预热开始...");
+        long startTime = System.currentTimeMillis();
+
+        try {
+            LambdaQueryWrapper<Doctor> wrapper = new LambdaQueryWrapper<>();
+            wrapper.eq(Doctor::getWorkStatus, UserConstant.DOCTOR_STATUS_ONLINE)
+                   .eq(Doctor::getIsDelete, UserConstant.NOT_DELETED);
+
+            List<Doctor> doctors = doctorMapper.selectList(wrapper);
+
+            Set<String> departments = doctors.stream()
+                    .map(Doctor::getDepartment)
+                    .filter(dept -> dept != null && !dept.isEmpty())
+                    .collect(Collectors.toSet());
+
+            int successCount = 0;
+            int failCount = 0;
+
+            for (String department : departments) {
+                try {
+                    LambdaQueryWrapper<Doctor> deptWrapper = new LambdaQueryWrapper<>();
+                    deptWrapper.eq(Doctor::getDepartment, department)
+                               .eq(Doctor::getWorkStatus, UserConstant.DOCTOR_STATUS_ONLINE)
+                               .eq(Doctor::getIsDelete, UserConstant.NOT_DELETED)
+                               .orderByAsc(Doctor::getTitle);
+
+                    List<Doctor> deptDoctors = doctorMapper.selectList(deptWrapper);
+
+                    String cacheKey = String.format(RedisKeyConstant.DOCTOR_DEPT_LIST, department);
+                    List<DoctorVO> doctorVOs = deptDoctors.stream()
+                            .map(DoctorVO::fromEntity)
+                            .collect(Collectors.toList());
+
+                    if (!doctorVOs.isEmpty()) {
+                        redisCacheUtil.set(cacheKey, doctorVOs, RedisKeyConstant.DOCTOR_CACHE_TTL);
+                        successCount++;
+                        log.debug("医生缓存预热成功: department={}, count={}", department, doctorVOs.size());
+                    }
+                } catch (Exception e) {
+                    log.error("预热医生缓存失败: department={}", department, e);
+                    failCount++;
+                }
+            }
+
+            long duration = System.currentTimeMillis() - startTime;
+            log.info("【定时任务】医生缓存预热完成，耗时{}ms，预热{}个科室，成功{}个，失败{}个",
+                    duration, departments.size(), successCount, failCount);
+
+        } catch (Exception e) {
+            log.error("【定时任务】医生缓存预热任务执行失败", e);
+        }
     }
 }

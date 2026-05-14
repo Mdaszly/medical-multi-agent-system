@@ -6,7 +6,7 @@
         SELECT * FROM schedule
         WHERE doctor_id = #{doctorId}
           AND schedule_date >= #{startDate}
-          AND schedule_date <= #{endDate}
+          AND schedule_date &lt;= #{endDate}
           AND is_delete = 0
         ORDER BY schedule_date, shift_type
     </select>
@@ -22,12 +22,14 @@
 
     <select id="selectOnDutyDoctors" resultType="com.medical.model.entity.Schedule">
         SELECT * FROM schedule
-        WHERE schedule_date = #{scheduleDate}
-          AND status = 1
-          AND is_delete = 0
-        <if test="shiftType != null and shiftType != ''">
-            AND shift_type = #{shiftType}
-        </if>
+        <where>
+            schedule_date = #{scheduleDate}
+            AND status = 1
+            AND is_delete = 0
+            <if test="shiftType != null and shiftType != ''">
+                AND shift_type = #{shiftType}
+            </if>
+        </where>
         ORDER BY department, shift_type, doctor_name
     </select>
 
