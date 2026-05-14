@@ -17,6 +17,15 @@ spring:
         options:
           model: ${DASHSCOPE_MODEL:qwen-max}
           temperature: 0.2
+  redis:
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+    lettuce:
+      pool:
+        max-active: 16
+        max-idle: 8
+        min-idle: 4
+        max-wait: 3000ms
 
 mybatis-plus:
   mapper-locations: classpath*:/mapper/**/*.xml
@@ -41,7 +50,7 @@ management:
 
 sa-token:
   token-name: Authorization
-  timeout: 604800
+  timeout: 1800
   activity-timeout: -1
   is-concurrent: true
   is-share: true
@@ -58,6 +67,3 @@ app:
     uri: ${NEO4J_URI:bolt://localhost:7687}
     username: ${NEO4J_USER:neo4j}
     password: ${NEO4J_PASSWORD:neo4jpass}
-  redis:
-    host: ${REDIS_HOST:localhost}
-    port: ${REDIS_PORT:6379}

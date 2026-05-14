@@ -7,18 +7,10 @@ public final class RedisKeyConstant {
     private RedisKeyConstant() {}
 
     /**
-     * Token相关Key常量
+     * 用户缓存相关
      */
-    public static final String TOKEN_PREFIX = "token:";
-    public static final String TOKEN_REFRESH_PREFIX = "refresh:";
     public static final String USER_CACHE_PREFIX = "user:cache:";
-    
-    /**
-     * Token过期时间配置
-     */
-    public static final Duration TOKEN_TTL = Duration.ofMinutes(30);      // Access Token有效期30分钟
-    public static final Duration REFRESH_TOKEN_TTL = Duration.ofDays(7);   // Refresh Token有效期7天
-    public static final Duration USER_CACHE_TTL = Duration.ofMinutes(10);  // 用户缓存有效期10分钟
+    public static final Duration USER_CACHE_TTL = Duration.ofMinutes(30);
 
     /**
      * 排班相关Key常量
@@ -47,21 +39,7 @@ public final class RedisKeyConstant {
     public static final Duration TTL_24_HOURS = Duration.ofHours(24);
     public static final Duration TTL_5_MINUTES = Duration.ofMinutes(5);
     public static final Duration TTL_30_MINUTES = Duration.ofMinutes(30);
-    
-    /**
-     * 构建Token Key
-     */
-    public static String buildTokenKey(String token) {
-        return TOKEN_PREFIX + token;
-    }
-    
-    /**
-     * 构建Refresh Token Key
-     */
-    public static String buildRefreshTokenKey(String refreshToken) {
-        return TOKEN_REFRESH_PREFIX + refreshToken;
-    }
-    
+
     /**
      * 构建用户缓存Key
      */

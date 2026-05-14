@@ -266,7 +266,7 @@ public class AuthServiceImpl implements AuthService {
         vo.setUserAccount(user.getUserAccount());
         vo.setUserName(user.getUserName());
         vo.setUserRole(user.getUserRole());
-        vo.setExpireTime(LocalDateTime.now().plusDays(7));
+        vo.setExpireTime(LocalDateTime.now().plusMinutes(30));
 
         AuthLoginVO.RoleInfo roleInfo = new AuthLoginVO.RoleInfo();
         if (UserConstant.ADMIN_ROLE.equals(user.getUserRole())) {
@@ -284,7 +284,7 @@ public class AuthServiceImpl implements AuthService {
         vo.setUserAccount(doctor.getUserAccount());
         vo.setUserName(doctor.getDoctorName());
         vo.setUserRole(UserConstant.DOCTOR_ROLE);
-        vo.setExpireTime(LocalDateTime.now().plusDays(7));
+        vo.setExpireTime(LocalDateTime.now().plusMinutes(30));
 
         AuthLoginVO.RoleInfo roleInfo = new AuthLoginVO.RoleInfo();
         roleInfo.setDepartment(doctor.getDepartment());
