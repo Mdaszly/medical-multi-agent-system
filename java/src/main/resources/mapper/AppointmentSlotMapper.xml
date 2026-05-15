@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.medical.mapper.AppointmentSlotMapper">
+
+    <select id="selectByScheduleId" resultType="com.medical.model.entity.AppointmentSlot">
+        SELECT * FROM appointment_slot
+        WHERE schedule_id = #{scheduleId}
+        ORDER BY time_slot
+    </select>
+
+</mapper>

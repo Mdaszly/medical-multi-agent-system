@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.medical.mapper.AppointmentMapper">
+
+    <select id="selectByUserIdAndDateRange" resultType="com.medical.model.entity.Appointment">
+        SELECT * FROM appointment
+        WHERE user_id = #{userId}
+          AND schedule_date >= #{startDate}
+          AND schedule_date &lt;= #{endDate}
+        ORDER BY schedule_date DESC, create_time DESC
+    </select>
+
+    <select id="selectByDoctorIdAndDateRange" resultType="com.medical.model.entity.Appointment">
+        SELECT * FROM appointment
+        WHERE doctor_id = #{doctorId}
+          AND schedule_date >= #{startDate}
+          AND schedule_date &lt;= #{endDate}
+        ORDER BY schedule_date, time_slot
+    </select>
+
+    <select id="countByUserIdAndScheduleIdAndTimeSlot" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM appointment
+        WHERE user_id = #{userId}
+          AND schedule_id = #{scheduleId}
+          AND time_slot = #{timeSlot}
+          AND status IN (0, 1, 2)
+    </select>
+
+    <select id="selectByScheduleId" resultType="com.medical.model.entity.Appointment">
+        SELECT * FROM appointment
+        WHERE schedule_id = #{scheduleId}
+        ORDER BY time_slot
+    </select>
+
+</mapper>
