@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.medical.mapper.DrugInfoMapper">
+
+    <select id="selectByDrugCode" resultType="com.medical.model.entity.DrugInfo">
+        SELECT * FROM drug_info WHERE drug_code = #{drugCode} AND status = 1
+    </select>
+
+    <select id="selectDrugWithPriceList" resultType="com.medical.model.vo.DrugWithPriceVO">
+        SELECT 
+            d.id,
+            d.drug_code as drugCode,
+            d.drug_name as drugName,
+            d.specification,
+            d.unit,
+            COALESCE(rp.price, 0) as retailPrice,
+            COALESCE(ip.price, 0) as insurancePrice
+        FROM drug_info d
+        LEFT JOIN drug_price rp 
+            ON d.id = rp.drug_id 
+            AND rp.price_type = 'RETAIL' 
+            AND rp.expire_date IS NULL
+        LEFT JOIN drug_price ip 
+            ON d.id = ip.drug_id 
+            AND ip.price_type = 'INSURANCE' 
+            AND ip.expire_date IS NULL
+        WHERE d.status = 1
+        <if test="drugCode != null and drugCode != ''">
+            AND d.drug_code LIKE CONCAT('%', #{drugCode}, '%')
+        </if>
+        <if test="drugName != null and drugName != ''">
+            AND d.drug_name LIKE CONCAT('%', #{drugName}, '%')
+        </if>
+        <if test="categoryCode != null and categoryCode != ''">
+            AND d.category_code = #{categoryCode}
+        </if>
+        ORDER BY d.drug_name
+    </select>
+
+</mapper>

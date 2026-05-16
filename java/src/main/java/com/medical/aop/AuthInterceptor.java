@@ -54,15 +54,16 @@ public class AuthInterceptor {
         Long loginId = StpUtil.getLoginIdAsLong();
         String currentRole = null;
 
-        User user = userMapper.selectById(loginId);
-        if (user != null) {
-            currentRole = user.getUserRole();
-            log.info("Authenticated User: id={}, role={}", loginId, currentRole);
+        // 优先检查是否为医生（医生账号在user表和doctor表都存在）
+        Doctor doctor = doctorMapper.selectById(loginId);
+        if (doctor != null) {
+            currentRole = UserConstant.DOCTOR_ROLE;
+            log.info("Authenticated Doctor: id={}, role={}", loginId, currentRole);
         } else {
-            Doctor doctor = doctorMapper.selectById(loginId);
-            if (doctor != null) {
-                currentRole = UserConstant.DOCTOR_ROLE;
-                log.info("Authenticated Doctor: id={}, role={}", loginId, currentRole);
+            User user = userMapper.selectById(loginId);
+            if (user != null) {
+                currentRole = user.getUserRole();
+                log.info("Authenticated User: id={}, role={}", loginId, currentRole);
             }
         }
 
@@ -89,13 +90,13 @@ public class AuthInterceptor {
      * @return 是否有权限
      */
     private boolean hasPermission(AuthCheck authCheck, String currentRole) {
-        // 规则1：管理员特权访问
-        if (authCheck.adminAccess() && UserConstant.ADMIN_ROLE.equals(currentRole)) {
+        // 规则0：管理员特权访问（优先于所有其他规则）
+        if (UserConstant.ADMIN_ROLE.equals(currentRole)) {
             log.debug("Admin access granted: role={}", currentRole);
             return true;
         }
 
-        // 规则2：多角色校验（优先）
+        // 规则1：多角色校验（优先）
         String[] mustRoles = authCheck.mustRoles();
         if (mustRoles != null && mustRoles.length > 0) {
             for (String role : mustRoles) {
@@ -108,7 +109,7 @@ public class AuthInterceptor {
             return false;
         }
 
-        // 规则3：单角色校验（兼容旧版）
+        // 规则2：单角色校验（兼容旧版）
         String mustRole = authCheck.mustRole();
         if (StringUtils.hasText(mustRole)) {
             boolean matched = mustRole.equals(currentRole);
@@ -117,7 +118,7 @@ public class AuthInterceptor {
             return matched;
         }
 
-        // 规则4：没有配置任何角色限制，只要登录就能访问
+        // 规则3：没有配置任何角色限制，只要登录就能访问
         log.debug("No role restriction configured, access granted");
         return true;
     }

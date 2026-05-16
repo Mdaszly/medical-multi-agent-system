@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.medical.mapper.PrescriptionItemMapper">
+
+    <select id="selectByPrescriptionId" resultType="com.medical.model.entity.PrescriptionItem">
+        SELECT * FROM prescription_item
+        WHERE prescription_id = #{prescriptionId}
+        ORDER BY create_time ASC
+    </select>
+
+    <delete id="deleteByPrescriptionId">
+        DELETE FROM prescription_item
+        WHERE prescription_id = #{prescriptionId}
+    </delete>
+
+</mapper>

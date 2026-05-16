@@ -8,6 +8,7 @@ public class UserConstant {
     public static final String USER_ROLE = "user";
     public static final String ADMIN_ROLE = "admin";
     public static final String DOCTOR_ROLE = "doctor";
+    public static final String PHARMACIST_ROLE = "pharmacist";
 
     public static final Integer STATUS_NORMAL = 1;
     public static final Integer STATUS_DISABLED = 0;

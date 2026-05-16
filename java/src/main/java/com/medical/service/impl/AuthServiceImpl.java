@@ -58,7 +58,7 @@ public class AuthServiceImpl implements AuthService {
         if (userRole == null || userRole.isEmpty()) {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "角色不能为空");
         }
-        if (!UserConstant.USER_ROLE.equals(userRole) && !UserConstant.DOCTOR_ROLE.equals(userRole)) {
+        if (!UserConstant.USER_ROLE.equals(userRole) && !UserConstant.DOCTOR_ROLE.equals(userRole) && !UserConstant.PHARMACIST_ROLE.equals(userRole)) {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "不支持的角色类型");
         }
 
@@ -97,7 +97,7 @@ public class AuthServiceImpl implements AuthService {
         String salt = generateSalt();
         String encryptedPassword = encryptPassword(userPassword, salt);
 
-        if (UserConstant.USER_ROLE.equals(userRole)) {
+        if (UserConstant.USER_ROLE.equals(userRole) || UserConstant.PHARMACIST_ROLE.equals(userRole)) {
             User user = new User();
             user.setUserAccount(userAccount);
             user.setUserPassword(encryptedPassword);

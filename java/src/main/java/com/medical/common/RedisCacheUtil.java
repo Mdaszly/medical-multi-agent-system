@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.Collection;
 
@@ -27,7 +28,14 @@ public class RedisCacheUtil {
     public <T> T get(String key, Class<T> clazz) {
         try {
             Object value = redisTemplate.opsForValue().get(key);
-            return value != null ? (T) value : null;
+            if (value == null) {
+                return null;
+            }
+            // 处理 BigDecimal 类型转换（Redis 可能反序列化为 Double）
+            if (clazz == BigDecimal.class && value instanceof Number) {
+                return (T) new BigDecimal(value.toString());
+            }
+            return (T) value;
         } catch (Exception e) {
             log.error("Redis get error: key={}, error={}", key, e.getMessage());
             return null;

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.medical.mapper.PrescriptionMapper">
+
+    <select id="selectByUserId" resultType="com.medical.model.entity.Prescription">
+        SELECT * FROM prescription
+        WHERE user_id = #{userId}
+        ORDER BY create_time DESC
+    </select>
+
+    <select id="selectByDoctorId" resultType="com.medical.model.entity.Prescription">
+        SELECT * FROM prescription
+        WHERE doctor_id = #{doctorId}
+        ORDER BY create_time DESC
+    </select>
+
+    <select id="selectByAppointmentId" resultType="com.medical.model.entity.Prescription">
+        SELECT * FROM prescription
+        WHERE appointment_id = #{appointmentId}
+        ORDER BY create_time DESC
+    </select>
+
+    <select id="selectByPrescriptionNo" resultType="com.medical.model.entity.Prescription">
+        SELECT * FROM prescription
+        WHERE prescription_no = #{prescriptionNo}
+        LIMIT 1
+    </select>
+
+</mapper>
