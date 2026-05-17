@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.medical.mapper.BillMapper">
+
+    <select id="selectByBillNo" resultType="com.medical.model.entity.Bill">
+        SELECT * FROM bill WHERE bill_no = #{billNo}
+    </select>
+
+    <update id="updateStatusWithVersion">
+        UPDATE bill
+        SET status = #{newStatus},
+            paid_amount = paid_amount + #{amount},
+            pay_time = NOW(),
+            version = version + 1,
+            update_time = NOW()
+        WHERE id = #{billId}
+          AND version = #{currentVersion}
+          AND status = 'UNPAID'
+    </update>
+
+</mapper>

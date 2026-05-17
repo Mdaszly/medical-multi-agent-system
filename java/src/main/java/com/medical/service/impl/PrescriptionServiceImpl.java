@@ -16,6 +16,7 @@ import com.medical.model.dto.prescription.PrescriptionStatusUpdateRequest;
 import com.medical.model.entity.*;
 import com.medical.model.vo.PrescriptionVO;
 import com.medical.service.DrugService;
+import com.medical.service.FeeItemService;
 import com.medical.service.PrescriptionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -44,63 +45,75 @@ public class PrescriptionServiceImpl implements PrescriptionService {
     private final DoctorMapper doctorMapper;
     private final UserMapper userMapper;
     private final DrugService drugService;
+    private final FeeItemService feeItemService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public PrescriptionVO createPrescription(PrescriptionAddRequest request) {
+        // 获取当前登录医生ID
         Long doctorId = StpUtil.getLoginIdAsLong();
         Long appointmentId = request.getAppointmentId();
 
+        // 参数校验
         ThrowUtils.throwIf(appointmentId == null || appointmentId <= 0, ErrorCode.PARAM_ERROR, "预约ID无效");
         ThrowUtils.throwIf(request.getDrugs() == null || request.getDrugs().isEmpty(), ErrorCode.PARAM_ERROR, "药品列表不能为空");
 
+        // 步骤1：验证预约信息
         Appointment appointment = appointmentMapper.selectById(appointmentId);
         ThrowUtils.throwIf(appointment == null, ErrorCode.PARAM_ERROR, "预约不存在");
 
+        // 步骤2：验证患者信息
         User user = userMapper.selectById(appointment.getUserId());
         ThrowUtils.throwIf(user == null, ErrorCode.USER_NOT_FOUND, "患者不存在");
 
+        // 步骤3：验证医生信息
         Doctor doctor = doctorMapper.selectById(doctorId);
         ThrowUtils.throwIf(doctor == null, ErrorCode.PARAM_ERROR, "医生不存在");
 
+        // 步骤4：构建处方主记录
         Prescription prescription = new Prescription();
-        prescription.setPrescriptionNo(generatePrescriptionNo());
+        prescription.setPrescriptionNo(generatePrescriptionNo());  // 生成唯一处方编号
         prescription.setAppointmentId(appointmentId);
         prescription.setUserId(user.getId());
         prescription.setUserName(user.getUserName());
         prescription.setDoctorId(doctorId);
         prescription.setDoctorName(doctor.getDoctorName());
         prescription.setDepartment(doctor.getDepartment());
-        prescription.setDiagnosis(request.getDiagnosis());
-        prescription.setStatus(PrescriptionConstant.PRESCRIPTION_STATUS_AUDITED);
+        prescription.setDiagnosis(request.getDiagnosis());  // 诊断信息
+        prescription.setStatus(PrescriptionConstant.PRESCRIPTION_STATUS_AUDITED);  // 医生开具即审核通过
         prescription.setAuditTime(LocalDateTime.now());
-        prescription.setAuditUserId(doctorId);
+        prescription.setAuditUserId(doctorId);  // 医生自审
         prescription.setRemark(request.getRemark());
 
+        // 步骤5：处理药品明细，计算总金额
         BigDecimal totalAmount = BigDecimal.ZERO;
         List<PrescriptionItem> items = new ArrayList<>();
 
         for (PrescriptionAddRequest.PrescriptionDrugItem drugItem : request.getDrugs()) {
+            // 药品信息校验
             ThrowUtils.throwIf(!StringUtils.hasText(drugItem.getDrugCode()), ErrorCode.PARAM_ERROR, "药品编码不能为空");
             ThrowUtils.throwIf(!StringUtils.hasText(drugItem.getDrugName()), ErrorCode.PARAM_ERROR, "药品名称不能为空");
             ThrowUtils.throwIf(drugItem.getQuantity() == null || drugItem.getQuantity().compareTo(BigDecimal.ZERO) <= 0,
                     ErrorCode.PARAM_ERROR, "药品数量必须大于0");
 
+            // 从缓存/数据库获取药品当前零售价格
             BigDecimal unitPrice = drugService.getCurrentPriceByCode(drugItem.getDrugCode(), DrugConstant.PRICE_TYPE_RETAIL);
             ThrowUtils.throwIf(unitPrice == null, ErrorCode.PARAM_ERROR, "药品价格不存在: " + drugItem.getDrugName());
 
+            // 计算单项金额
             BigDecimal itemTotal = unitPrice.multiply(drugItem.getQuantity()).setScale(2, RoundingMode.HALF_UP);
             totalAmount = totalAmount.add(itemTotal);
 
+            // 构建药品明细项
             PrescriptionItem item = new PrescriptionItem();
             item.setDrugCode(drugItem.getDrugCode());
             item.setDrugName(drugItem.getDrugName());
-            item.setSpecification(drugItem.getSpecification());
-            item.setDosage(drugItem.getDosage());
-            item.setUsage(drugItem.getUsage());
-            item.setFrequency(drugItem.getFrequency());
-            item.setDuration(drugItem.getDuration());
+            item.setSpecification(drugItem.getSpecification());  // 规格
+            item.setDosage(drugItem.getDosage());                // 剂量
+            item.setUsage(drugItem.getUsage());                  // 用法
+            item.setFrequency(drugItem.getFrequency());          // 频次
+            item.setDuration(drugItem.getDuration());            // 用药时长
             item.setQuantity(drugItem.getQuantity());
             item.setUnitPrice(unitPrice);
             item.setTotalAmount(itemTotal);
@@ -109,7 +122,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
 
         prescription.setTotalAmount(totalAmount.setScale(2, RoundingMode.HALF_UP));
         
-        // 将药品明细转为 JSON 存储到 drugs 字段
+        // 将药品明细转为JSON存储（冗余存储，便于快速查看）
         try {
             String drugsJson = objectMapper.writeValueAsString(items);
             prescription.setDrugs(drugsJson);
@@ -118,15 +131,21 @@ public class PrescriptionServiceImpl implements PrescriptionService {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "药品明细序列化失败");
         }
         
+        // 步骤6：保存处方主记录
         prescriptionMapper.insert(prescription);
 
+        // 步骤7：保存处方明细记录
         for (PrescriptionItem item : items) {
             item.setPrescriptionId(prescription.getId());
             prescriptionItemMapper.insert(item);
         }
 
+        // 步骤8：自动生成费用项（用于后续结算）
+        createFeeItems(prescription, items);
+
         log.info("处方创建成功: prescriptionNo={}", prescription.getPrescriptionNo());
 
+        // 构建返回VO
         PrescriptionVO vo = PrescriptionVO.fromEntity(prescription);
         vo.setItems(items.stream().map(PrescriptionVO.PrescriptionItemVO::fromEntity).collect(Collectors.toList()));
         return vo;
@@ -257,5 +276,42 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         String dateStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
         String uuid = UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         return PrescriptionConstant.PRESCRIPTION_NO_PREFIX + dateStr + uuid;
+    }
+
+    private void createFeeItems(Prescription prescription, List<PrescriptionItem> items) {
+        List<FeeItem> feeItems = new ArrayList<>();
+        
+        for (PrescriptionItem item : items) {
+            FeeItem feeItem = FeeItem.builder()
+                    .feeItemNo(generateFeeItemNo())
+                    .userId(prescription.getUserId())
+                    .appointmentId(prescription.getAppointmentId())
+                    .prescriptionId(prescription.getId())
+                    .itemType("PRESCRIPTION")
+                    .itemName(item.getDrugName())
+                    .itemCode(item.getDrugCode())
+                    .quantity(item.getQuantity())
+                    .unitPrice(item.getUnitPrice())
+                    .totalAmount(item.getTotalAmount())
+                    .discountAmount(BigDecimal.ZERO)
+                    .actualAmount(item.getTotalAmount())
+                    .insuranceAmount(BigDecimal.ZERO)
+                    .selfPayAmount(item.getTotalAmount())
+                    .status("UNSETTLED")
+                    .settleFlag(false)
+                    .createTime(LocalDateTime.now())
+                    .updateTime(LocalDateTime.now())
+                    .build();
+            feeItems.add(feeItem);
+        }
+        
+        feeItemService.batchCreate(feeItems);
+        log.info("处方费用项创建成功: prescriptionId={}, count={}", prescription.getId(), feeItems.size());
+    }
+
+    private String generateFeeItemNo() {
+        String dateStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+        String uuid = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+        return "FEE" + dateStr + uuid;
     }
 }

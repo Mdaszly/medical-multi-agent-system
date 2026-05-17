@@ -51,61 +51,67 @@ public class AppointmentServiceImpl implements AppointmentService {
 
     @Override
     public AppointmentVO createAppointment(AppointmentAddRequest request) {
-        // 获取当前登录用户ID
+        // 获取当前登录用户ID（患者ID）
         Long userId = StpUtil.getLoginIdAsLong();
         Long scheduleId = request.getScheduleId();
         String timeSlot = request.getTimeSlot();
 
-        // 参数校验
+        // 参数校验：排班ID和时段不能为空
         ThrowUtils.throwIf(scheduleId == null || scheduleId <= 0, ErrorCode.PARAM_ERROR, "排班ID无效");
         ThrowUtils.throwIf(!StringUtils.hasText(timeSlot), ErrorCode.PARAM_ERROR, "时段不能为空");
 
-        // 获取分布式锁，防止多实例并发预约导致超卖
+        // 获取分布式锁，防止多实例并发预约导致号源超卖
+        // 锁的粒度：按排班ID加锁，允许不同排班同时预约
         String lockKey = String.format(AppointmentConstant.LOCK_APPOINTMENT_SLOT, scheduleId);
         boolean locked = distributedLock.tryLock(lockKey, 10, TimeUnit.SECONDS);
         ThrowUtils.throwIf(!locked, ErrorCode.SYSTEM_ERROR, "系统繁忙，请稍后重试");
 
         try {
-            // 通过代理调用事务方法，确保锁在事务提交后释放
+            // 通过AOP代理调用事务方法，确保锁在事务提交后再释放
+            // 避免事务未提交就释放锁导致的数据不一致问题
             AppointmentServiceImpl proxy = (AppointmentServiceImpl) AopContext.currentProxy();
             return proxy.doCreateAppointment(request, userId);
         } finally {
+            // 无论成功失败都释放锁
             distributedLock.unlock(lockKey);
         }
     }
 
     /**
      * 实际创建预约的方法（事务内执行）
+     * 业务规则：一个用户在同一时段只能预约一次（幂等性）
      */
     @Transactional(rollbackFor = Exception.class)
     public AppointmentVO doCreateAppointment(AppointmentAddRequest request, Long userId) {
         Long scheduleId = request.getScheduleId();
         String timeSlot = request.getTimeSlot();
 
-        // 验证排班是否存在
+        // 步骤1：验证排班信息是否存在
         Schedule schedule = scheduleMapper.selectById(scheduleId);
         ThrowUtils.throwIf(schedule == null, ErrorCode.PARAM_ERROR, "排班不存在");
 
-        // 查询该时段的号源
+        // 步骤2：查询指定时段的号源信息
         AppointmentSlot slot = getSlotByScheduleIdAndTimeSlot(scheduleId, timeSlot);
         ThrowUtils.throwIf(slot == null, ErrorCode.PARAM_ERROR, "号源不存在");
         ThrowUtils.throwIf(slot.getAvailableSlots() <= 0, ErrorCode.PARAM_ERROR, "该时段已约满");
 
-        // 检查用户是否已预约该时段（幂等性）
+        // 步骤3：幂等性检查 - 防止重复预约
+        // 同一用户在同一排班的同一时段只能预约一次
         int count = appointmentMapper.countByUserIdAndScheduleIdAndTimeSlot(userId, scheduleId, timeSlot);
         ThrowUtils.throwIf(count > 0, ErrorCode.PARAM_ERROR, "您已预约该时段");
 
-        // 验证用户存在
+        // 步骤4：验证患者信息
         User user = userMapper.selectById(userId);
         ThrowUtils.throwIf(user == null, ErrorCode.USER_NOT_FOUND, "用户不存在");
 
-        // 乐观锁扣减号源数量，防止并发超卖
+        // 步骤5：乐观锁扣减号源数量
+        // 使用version字段实现乐观锁，防止并发场景下的号源超卖
         int updated = appointmentSlotMapper.decreaseAvailableSlotsWithLock(slot.getId(), slot.getVersion());
         ThrowUtils.throwIf(updated == 0, ErrorCode.SYSTEM_ERROR, "号源已被占用，请重试");
 
-        // 构建预约记录
+        // 步骤6：构建预约记录
         Appointment appointment = new Appointment();
-        appointment.setAppointmentNo(generateAppointmentNo());
+        appointment.setAppointmentNo(generateAppointmentNo());  // 生成唯一预约编号
         appointment.setUserId(userId);
         appointment.setUserName(user.getUserName());
         appointment.setDoctorId(schedule.getDoctorId());
@@ -116,15 +122,16 @@ public class AppointmentServiceImpl implements AppointmentService {
         appointment.setShiftType(schedule.getShiftType());
         appointment.setTimeSlot(timeSlot);
 
-        // 获取挂号费
+        // 获取医生挂号费
         Doctor doctor = doctorMapper.selectById(schedule.getDoctorId());
         appointment.setConsultationFee(doctor != null ? doctor.getConsultationFee() : null);
 
+        // 设置初始状态：待就诊
         appointment.setStatus(AppointmentConstant.APPOINTMENT_STATUS_PENDING);
         appointment.setCheckInStatus(false);
         appointment.setRemark(request.getRemark());
 
-        // 保存预约记录
+        // 步骤7：保存预约记录
         appointmentMapper.insert(appointment);
         return AppointmentVO.fromEntity(appointment);
     }

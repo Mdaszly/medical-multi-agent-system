@@ -429,6 +429,54 @@ INSERT INTO drug_price (drug_id, price_type, price, effective_date, create_user_
 SELECT id, 'RETAIL', 42.00, '2024-01-01', 1 FROM drug_info WHERE drug_code = 'A02BC01'
 ON CONFLICT (drug_id, price_type) WHERE expire_date IS NULL DO NOTHING;
 
+-- 1. 添加冗余字段（无外键约束）
+ALTER TABLE appointment_slot
+    ADD COLUMN doctor_id BIGINT DEFAULT NULL,
+    ADD COLUMN doctor_name VARCHAR(100) DEFAULT NULL;
+
+-- 2. 添加注释
+COMMENT ON COLUMN appointment_slot.doctor_id IS '医生ID（冗余字段，无外键）';
+COMMENT ON COLUMN appointment_slot.doctor_name IS '医生姓名（冗余字段）';
+
+-- 3. 回填现有数据
+UPDATE appointment_slot a
+SET doctor_id = s.doctor_id,
+    doctor_name = s.doctor_name
+FROM schedule s
+WHERE a.schedule_id = s.id;
+
+-- 4. 验证
+SELECT a.id, a.schedule_id, a.doctor_id, a.doctor_name, a.time_slot
+FROM appointment_slot a
+LIMIT 10;
+
+-- 给 payment 表添加缺失的字段
+ALTER TABLE payment
+    ADD COLUMN callback_data TEXT DEFAULT NULL;
+
+-- 1. 给 payment 表添加版本号（乐观锁）
+ALTER TABLE payment ADD COLUMN version INT DEFAULT 0;
+
+-- 2. 给 bill 表添加 version 字段
+ALTER TABLE bill ADD COLUMN version INT DEFAULT 0;
+
+-- 3. 为已存在的记录设置初始版本号
+UPDATE payment SET version = 0 WHERE version IS NULL OR version = 0;
+UPDATE bill SET version = 0 WHERE version IS NULL OR version = 0;
+
+-- 4. 确保字段不为NULL
+ALTER TABLE payment ALTER COLUMN version SET DEFAULT 0;
+ALTER TABLE payment ALTER COLUMN version SET NOT NULL;
+ALTER TABLE bill ALTER COLUMN version SET DEFAULT 0;
+ALTER TABLE bill ALTER COLUMN version SET NOT NULL;
+
+
+-- 5. 验证
+SELECT id, version, status FROM payment LIMIT 5;
+SELECT id, version, status FROM bill LIMIT 5;
+
+
+
 -- =============================================
 -- 脚本结束
 -- =============================================

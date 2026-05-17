@@ -34,10 +34,12 @@ public class SlotServiceImpl implements SlotService {
     public AppointmentSlotVO addSlot(SlotAddRequest request) {
         log.info("添加号源: scheduleId={}, timeSlot={}", request.getScheduleId(), request.getTimeSlot());
 
-        validateScheduleExists(request.getScheduleId());
+        Schedule schedule = validateScheduleExists(request.getScheduleId());
 
         AppointmentSlot slot = new AppointmentSlot();
         slot.setScheduleId(request.getScheduleId());
+        slot.setDoctorId(schedule.getDoctorId());
+        slot.setDoctorName(schedule.getDoctorName());
         slot.setTimeSlot(request.getTimeSlot());
         slot.setTimeStart(request.getTimeStart());
         slot.setTimeEnd(request.getTimeEnd());
@@ -59,7 +61,7 @@ public class SlotServiceImpl implements SlotService {
         log.info("批量添加号源: scheduleId={}, count={}", request.getScheduleId(),
                 request.getSlots() != null ? request.getSlots().size() : 0);
 
-        validateScheduleExists(request.getScheduleId());
+        Schedule schedule = validateScheduleExists(request.getScheduleId());
 
         ThrowUtils.throwIf(request.getSlots() == null || request.getSlots().isEmpty(), ErrorCode.PARAM_ERROR, "无号源数据");
 
@@ -67,6 +69,8 @@ public class SlotServiceImpl implements SlotService {
         for (SlotAddRequest slotRequest : request.getSlots()) {
             AppointmentSlot slot = new AppointmentSlot();
             slot.setScheduleId(request.getScheduleId());
+            slot.setDoctorId(schedule.getDoctorId());
+            slot.setDoctorName(schedule.getDoctorName());
             slot.setTimeSlot(slotRequest.getTimeSlot());
             slot.setTimeStart(slotRequest.getTimeStart());
             slot.setTimeEnd(slotRequest.getTimeEnd());
@@ -157,6 +161,8 @@ public class SlotServiceImpl implements SlotService {
 
             AppointmentSlot slot = new AppointmentSlot();
             slot.setScheduleId(scheduleId);
+            slot.setDoctorId(schedule.getDoctorId());
+            slot.setDoctorName(schedule.getDoctorName());
             slot.setTimeSlot(timeSlot);
             slot.setTimeStart(timeStart);
             slot.setTimeEnd(timeEnd);
@@ -179,11 +185,12 @@ public class SlotServiceImpl implements SlotService {
         log.info("默认号源生成成功: count={}", slots.size());
     }
 
-    private void validateScheduleExists(Long scheduleId) {
+    private Schedule validateScheduleExists(Long scheduleId) {
         ThrowUtils.throwIf(scheduleId == null || scheduleId <= 0,
                 ErrorCode.PARAM_ERROR, "排班ID无效");
         Schedule schedule = scheduleMapper.selectById(scheduleId);
         ThrowUtils.throwIf(schedule == null,
                 ErrorCode.PARAM_ERROR, "排班不存在");
+        return schedule;
     }
 }

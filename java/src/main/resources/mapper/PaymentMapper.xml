@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.medical.mapper.PaymentMapper">
+
+    <select id="selectByPaymentNo" resultType="com.medical.model.entity.Payment">
+        SELECT * FROM payment WHERE payment_no = #{paymentNo}
+    </select>
+
+    <update id="updateStatusWithVersion">
+        UPDATE payment
+        SET status = #{newStatus},
+            third_party_no = #{thirdPartyNo},
+            version = version + 1,
+            update_time = NOW()
+        WHERE id = #{paymentId}
+          AND version = #{currentVersion}
+          AND status = 0
+    </update>
+
+</mapper>

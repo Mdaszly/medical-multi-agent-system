@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.medical.mapper.FeeItemMapper">
+
+    <select id="calculateUnsettledAmount" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(actual_amount), 0) FROM fee_item 
+        WHERE user_id = #{userId} AND settle_flag = false
+    </select>
+
+    <select id="calculateByAppointmentId" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(actual_amount), 0) FROM fee_item 
+        WHERE appointment_id = #{appointmentId}
+    </select>
+
+    <select id="calculateByPrescriptionId" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(actual_amount), 0) FROM fee_item 
+        WHERE prescription_id = #{prescriptionId}
+    </select>
+
+    <select id="selectUnsettledByUserId" resultType="com.medical.model.entity.FeeItem">
+        SELECT * FROM fee_item 
+        WHERE user_id = #{userId} AND settle_flag = false 
+        ORDER BY create_time DESC
+    </select>
+
+    <select id="selectUnsettledByAppointmentId" resultType="com.medical.model.entity.FeeItem">
+        SELECT * FROM fee_item 
+        WHERE appointment_id = #{appointmentId} AND settle_flag = false 
+        ORDER BY create_time DESC
+    </select>
+
+    <select id="selectUnsettledByPrescriptionId" resultType="com.medical.model.entity.FeeItem">
+        SELECT * FROM fee_item 
+        WHERE prescription_id = #{prescriptionId} AND settle_flag = false 
+        ORDER BY create_time DESC
+    </select>
+
+    <select id="selectByBillId" resultType="com.medical.model.entity.FeeItem">
+        SELECT * FROM fee_item 
+        WHERE bill_id = #{billId} 
+        ORDER BY create_time DESC
+    </select>
+
+</mapper>

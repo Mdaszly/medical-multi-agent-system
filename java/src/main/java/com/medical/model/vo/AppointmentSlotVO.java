@@ -12,6 +12,10 @@ public class AppointmentSlotVO {
 
     private Long scheduleId;
 
+    private Long doctorId;
+
+    private String doctorName;
+
     private String timeSlot;
 
     private String timeStart;
@@ -37,6 +41,8 @@ public class AppointmentSlotVO {
         AppointmentSlotVO vo = new AppointmentSlotVO();
         vo.setId(slot.getId());
         vo.setScheduleId(slot.getScheduleId());
+        vo.setDoctorId(slot.getDoctorId());
+        vo.setDoctorName(slot.getDoctorName());
         vo.setTimeSlot(slot.getTimeSlot());
         vo.setTimeStart(slot.getTimeStart());
         vo.setTimeEnd(slot.getTimeEnd());

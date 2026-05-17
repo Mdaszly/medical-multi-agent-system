@@ -37,6 +37,18 @@ public class AppointmentSlot {
     private Long scheduleId;
 
     /**
+     * 医生ID（冗余字段）
+     * 优化：避免查询时关联排班表+医生表，提升性能
+     */
+    private Long doctorId;
+
+    /**
+     * 医生姓名（冗余字段）
+     * 优化：避免查询时关联医生表，直接显示医生姓名
+     */
+    private String doctorName;
+
+    /**
      * 具体时段，如：08:00-08:30
      */
     private String timeSlot;
