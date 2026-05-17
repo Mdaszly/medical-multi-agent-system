@@ -4,6 +4,7 @@ public enum ErrorCode {
 
     SUCCESS(0, "success"),
     PARAM_ERROR(40000, "请求参数错误"),
+    OPERATION_ERROR(40005, "操作失败"),
     VERIFICATION_CODE_ERROR(40001, "验证码错误"),
     VERIFICATION_CODE_EXPIRED(40002, "验证码已过期"),
     PASSWORD_FORMAT_ERROR(40003, "密码格式不正确"),

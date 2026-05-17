@@ -4,9 +4,9 @@ import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.medical.common.DistributedLock;
 import com.medical.common.ErrorCode;
 import com.medical.common.RedisCacheUtil;
+import com.medical.common.RedissonLockUtil;
 import com.medical.constant.AppointmentConstant;
 import com.medical.constant.UserConstant;
 import com.medical.exception.ThrowUtils;
@@ -46,7 +46,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     private final ScheduleMapper scheduleMapper;
     private final DoctorMapper doctorMapper;
     private final UserMapper userMapper;
-    private final DistributedLock distributedLock;
+    private final RedissonLockUtil redissonLockUtil;
     private final RedisCacheUtil redisCacheUtil;
 
     @Override
@@ -62,8 +62,9 @@ public class AppointmentServiceImpl implements AppointmentService {
 
         // 获取分布式锁，防止多实例并发预约导致号源超卖
         // 锁的粒度：按排班ID加锁，允许不同排班同时预约
+        // 使用Redisson锁，支持看门狗自动续期机制
         String lockKey = String.format(AppointmentConstant.LOCK_APPOINTMENT_SLOT, scheduleId);
-        boolean locked = distributedLock.tryLock(lockKey, 10, TimeUnit.SECONDS);
+        boolean locked = redissonLockUtil.tryLock(lockKey, 10);
         ThrowUtils.throwIf(!locked, ErrorCode.SYSTEM_ERROR, "系统繁忙，请稍后重试");
 
         try {
@@ -73,7 +74,7 @@ public class AppointmentServiceImpl implements AppointmentService {
             return proxy.doCreateAppointment(request, userId);
         } finally {
             // 无论成功失败都释放锁
-            distributedLock.unlock(lockKey);
+            redissonLockUtil.unlock(lockKey);
         }
     }
 

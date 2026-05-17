@@ -4,10 +4,10 @@ import java.time.Duration;
 
 /**
  * Redis键常量类
- * 
+ *
  * <p>定义所有Redis缓存键的前缀和过期时间配置。
  * 使用常量可以避免硬编码，提高代码的可维护性。
- * 
+ *
  * <p>Redis键命名规范：
  * - 使用冒号":"分隔层级
  * - 格式：{模块}:{类型}:{标识}
@@ -23,11 +23,20 @@ public final class RedisKeyConstant {
      * 用户缓存相关
      */
     public static final String USER_CACHE_PREFIX = "user:cache:";
+    public static final String USER_INFO = "user:info:%d";
     public static final Duration USER_CACHE_TTL = Duration.ofMinutes(30);
 
     /**
+     * 账单缓存相关
+     */
+    public static final String BILL_ID = "bill:id:%d";
+    public static final String BILL_NO = "bill:no:%s";
+    public static final String BILL_USER_LIST = "bill:user:%d";
+    public static final Duration BILL_CACHE_TTL = Duration.ofMinutes(30);
+
+    /**
      * 排班相关Key常量
-     * 
+     *
      * <p>SCHEDULE_ID: 单个排班信息缓存
      * SCHEDULE_DEPT_DATE: 按科室和日期查询排班列表
      * SCHEDULE_DOCTOR_DATE: 按医生和日期查询排班列表
@@ -40,7 +49,7 @@ public final class RedisKeyConstant {
 
     /**
      * 医生相关Key常量
-     * 
+     *
      * <p>DOCTOR_STATUS: 医生在岗状态缓存
      * DOCTOR_ID: 单个医生信息缓存
      * DOCTOR_DEPT_LIST: 按科室查询医生列表缓存
@@ -55,12 +64,12 @@ public final class RedisKeyConstant {
 
     /**
      * 医生缓存TTL配置
-     * 
+     *
      * <p>DOCTOR_CACHE_TTL: 基准过期时间（30分钟）
      * DOCTOR_CACHE_TTL_MIN: 最小过期时间（25分钟）
      * DOCTOR_CACHE_TTL_MAX: 最大过期时间（35分钟）
      * DOCTOR_EMPTY_CACHE_TTL: 空结果缓存过期时间（5分钟）
-     * 
+     *
      * <p>使用随机TTL范围可以防止缓存雪崩。
      */
     public static final Duration DOCTOR_CACHE_TTL = Duration.ofMinutes(30);
@@ -72,6 +81,8 @@ public final class RedisKeyConstant {
      * 锁相关Key常量
      */
     public static final String LOCK_SCHEDULE = "lock:schedule:doctor:%d:date:%s:shift:%s";
+    public static final String LOCK_PAYMENT = "lock:payment:user:%d:payment:%d";
+    public static final String LOCK_REFRESH = "lock:refresh:%s";
 
     /**
      * 通用TTL配置
@@ -84,7 +95,7 @@ public final class RedisKeyConstant {
 
     /**
      * 构建用户缓存Key
-     * 
+     *
      * @param userId 用户ID
      * @return 完整的缓存Key
      */

@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.medical.common.ErrorCode;
+import com.medical.common.RedisCacheUtil;
+import com.medical.constant.RedisKeyConstant;
 import com.medical.exception.BusinessException;
 import com.medical.exception.ThrowUtils;
 import com.medical.mapper.AppointmentMapper;
@@ -27,6 +29,7 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -46,6 +49,7 @@ public class BillServiceImpl implements BillService {
     private final FeeItemMapper feeItemMapper;
     private final AppointmentMapper appointmentMapper;
     private final FeeItemService feeItemService;
+    private final RedisCacheUtil redisCacheUtil;
 
     private static final String BILL_NO_PREFIX = "BILL";
     private static final String STATUS_UNPAID = "UNPAID";
@@ -139,17 +143,53 @@ public class BillServiceImpl implements BillService {
     @Override
     public BillVO getBillById(Long id) {
         ThrowUtils.throwIf(id == null || id <= 0, ErrorCode.PARAM_ERROR, "账单ID无效");
-        Bill bill = billMapper.selectById(id);
-        ThrowUtils.throwIf(bill == null, ErrorCode.PARAM_ERROR, "账单不存在");
-        return buildBillVO(bill);
+        
+        String cacheKey = String.format(RedisKeyConstant.BILL_ID, id);
+        Duration cacheTtl = Duration.ofMinutes(30);
+        Duration nullTtl = Duration.ofMinutes(5);
+        
+        BillVO result = redisCacheUtil.queryWithPassThrough(
+            cacheKey,
+            BillVO.class,
+            key -> {
+                Bill bill = billMapper.selectById(id);
+                if (bill == null) {
+                    return null;
+                }
+                return buildBillVO(bill);
+            },
+            cacheTtl,
+            nullTtl
+        );
+        
+        ThrowUtils.throwIf(result == null, ErrorCode.PARAM_ERROR, "账单不存在");
+        return result;
     }
 
     @Override
     public BillVO getBillByNo(String billNo) {
         ThrowUtils.throwIf(!StringUtils.hasText(billNo), ErrorCode.PARAM_ERROR, "账单编号无效");
-        Bill bill = billMapper.selectByBillNo(billNo);
-        ThrowUtils.throwIf(bill == null, ErrorCode.PARAM_ERROR, "账单不存在");
-        return buildBillVO(bill);
+        
+        String cacheKey = String.format(RedisKeyConstant.BILL_NO, billNo);
+        Duration cacheTtl = Duration.ofMinutes(30);
+        Duration nullTtl = Duration.ofMinutes(5);
+        
+        BillVO result = redisCacheUtil.queryWithPassThrough(
+            cacheKey,
+            BillVO.class,
+            key -> {
+                Bill bill = billMapper.selectByBillNo(billNo);
+                if (bill == null) {
+                    return null;
+                }
+                return buildBillVO(bill);
+            },
+            cacheTtl,
+            nullTtl
+        );
+        
+        ThrowUtils.throwIf(result == null, ErrorCode.PARAM_ERROR, "账单不存在");
+        return result;
     }
 
     @Override
@@ -210,6 +250,8 @@ public class BillServiceImpl implements BillService {
         bill.setStatus(status);
         bill.setUpdateTime(LocalDateTime.now());
         billMapper.updateById(bill);
+        
+        deleteBillCache(id, bill.getBillNo(), bill.getUserId());
         log.info("账单状态更新: billId={}, status={}", id, status);
     }
 
@@ -241,6 +283,7 @@ public class BillServiceImpl implements BillService {
             feeItemService.markAsSettled(ids);
         }
 
+        deleteBillCache(billId, bill.getBillNo(), bill.getUserId());
         log.info("账单支付成功: billId={}, amount={}", billId, amount);
     }
 
@@ -269,6 +312,10 @@ public class BillServiceImpl implements BillService {
             feeItemService.markAsSettled(ids);
         }
 
+        // 删除相关缓存
+        Bill bill = getBillEntityById(billId);
+        deleteBillCache(billId, bill.getBillNo(), bill.getUserId());
+        
         log.info("账单支付成功（乐观锁）: billId={}, amount={}", billId, amount);
     }
 
@@ -287,7 +334,8 @@ public class BillServiceImpl implements BillService {
         bill.setRemark(reason);
         bill.setUpdateTime(LocalDateTime.now());
         billMapper.updateById(bill);
-
+        
+        deleteBillCache(billId, bill.getBillNo(), bill.getUserId());
         log.info("账单退款成功: billId={}, refundAmount={}, reason={}", billId, refundAmount, reason);
     }
 
@@ -344,6 +392,16 @@ public class BillServiceImpl implements BillService {
                     .collect(Collectors.toList()));
         }
         return vo;
+    }
+
+    private void deleteBillCache(Long billId, String billNo, Long userId) {
+        redisCacheUtil.delete(String.format(RedisKeyConstant.BILL_ID, billId));
+        if (billNo != null) {
+            redisCacheUtil.delete(String.format(RedisKeyConstant.BILL_NO, billNo));
+        }
+        if (userId != null) {
+            redisCacheUtil.delete(String.format(RedisKeyConstant.BILL_USER_LIST, userId));
+        }
     }
 
     private String generateBillNo() {

@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.medical.common.ErrorCode;
+import com.medical.common.RedisCacheUtil;
+import com.medical.constant.RedisKeyConstant;
 import com.medical.constant.UserConstant;
 import com.medical.exception.BusinessException;
 import com.medical.exception.ThrowUtils;
@@ -22,6 +24,7 @@ import org.springframework.util.StringUtils;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.HexFormat;
@@ -33,11 +36,32 @@ import java.util.Map;
 public class UserServiceImpl implements UserService {
 
     private final UserMapper userMapper;
+    private final RedisCacheUtil redisCacheUtil;
 
     @Override
     public UserVO getUserById(Long id) {
-        User user = getUserEntityById(id);
-        return UserVO.fromEntity(user);
+        ThrowUtils.throwIf(id == null || id <= 0, ErrorCode.PARAM_ERROR, "用户ID无效");
+        
+        String cacheKey = String.format(RedisKeyConstant.USER_INFO, id);
+        Duration cacheTtl = Duration.ofHours(1);
+        Duration nullTtl = Duration.ofMinutes(2);
+        
+        UserVO result = redisCacheUtil.queryWithPassThrough(
+            cacheKey,
+            UserVO.class,
+            key -> {
+                User user = userMapper.selectById(id);
+                if (user == null) {
+                    return null;
+                }
+                return UserVO.fromEntity(user);
+            },
+            cacheTtl,
+            nullTtl
+        );
+        
+        ThrowUtils.throwIf(result == null, ErrorCode.USER_NOT_FOUND);
+        return result;
     }
 
     @Override
@@ -131,6 +155,7 @@ public class UserServiceImpl implements UserService {
         int result = userMapper.updateById(user);
         ThrowUtils.throwIf(result == 0, ErrorCode.SYSTEM_ERROR, "更新失败");
         
+        redisCacheUtil.delete(String.format(RedisKeyConstant.USER_INFO, id));
         log.info("User updated successfully: id={}", id);
         return UserVO.fromEntity(user);
     }
@@ -153,6 +178,7 @@ public class UserServiceImpl implements UserService {
         int result = userMapper.updateById(user);
         ThrowUtils.throwIf(result == 0, ErrorCode.SYSTEM_ERROR, "更新失败");
         
+        redisCacheUtil.delete(String.format(RedisKeyConstant.USER_INFO, id));
         log.info("Profile updated successfully: id={}", id);
         return UserVO.fromEntity(user);
     }
@@ -184,6 +210,7 @@ public class UserServiceImpl implements UserService {
         int result = userMapper.updateById(user);
         ThrowUtils.throwIf(result == 0, ErrorCode.SYSTEM_ERROR, "密码修改失败");
         
+        redisCacheUtil.delete(String.format(RedisKeyConstant.USER_INFO, id));
         log.info("Password changed successfully: id={}", id);
     }
 
@@ -202,6 +229,7 @@ public class UserServiceImpl implements UserService {
         int result = userMapper.updateById(user);
         ThrowUtils.throwIf(result == 0, ErrorCode.SYSTEM_ERROR, "绑定失败");
         
+        redisCacheUtil.delete(String.format(RedisKeyConstant.USER_INFO, id));
         log.info("Phone bound successfully: id={}", id);
     }
 
@@ -220,6 +248,7 @@ public class UserServiceImpl implements UserService {
         int result = userMapper.updateById(user);
         ThrowUtils.throwIf(result == 0, ErrorCode.SYSTEM_ERROR, "绑定失败");
         
+        redisCacheUtil.delete(String.format(RedisKeyConstant.USER_INFO, id));
         log.info("Email bound successfully: id={}", id);
     }
 
@@ -240,6 +269,7 @@ public class UserServiceImpl implements UserService {
         int result = userMapper.updateById(user);
         ThrowUtils.throwIf(result == 0, ErrorCode.SYSTEM_ERROR, "删除失败");
         
+        redisCacheUtil.delete(String.format(RedisKeyConstant.USER_INFO, id));
         log.info("User deleted successfully: id={}", id);
     }
 
@@ -260,6 +290,7 @@ public class UserServiceImpl implements UserService {
         int result = userMapper.updateById(user);
         ThrowUtils.throwIf(result == 0, ErrorCode.SYSTEM_ERROR, "禁用失败");
         
+        redisCacheUtil.delete(String.format(RedisKeyConstant.USER_INFO, id));
         log.info("User disabled successfully: id={}", id);
     }
 
@@ -276,6 +307,7 @@ public class UserServiceImpl implements UserService {
         int result = userMapper.updateById(user);
         ThrowUtils.throwIf(result == 0, ErrorCode.SYSTEM_ERROR, "启用失败");
         
+        redisCacheUtil.delete(String.format(RedisKeyConstant.USER_INFO, id));
         log.info("User enabled successfully: id={}", id);
     }
 
