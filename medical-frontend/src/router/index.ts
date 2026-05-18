@@ -93,6 +93,18 @@ const routes: RouteRecordRaw[] = [
         component: () => import("@/views/patient/Profile.vue"),
         meta: { title: "个人中心" },
       },
+      {
+        path: "consult",
+        name: "Consult",
+        component: () => import("@/views/patient/ConsultPage.vue"),
+        meta: { title: "线上问诊" },
+      },
+      {
+        path: "consult/:sessionId",
+        name: "ConsultSession",
+        component: () => import("@/views/patient/ConsultSessionPage.vue"),
+        meta: { title: "问诊详情" },
+      },
     ],
   },
 

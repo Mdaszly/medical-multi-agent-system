@@ -68,7 +68,7 @@ async function request<T = any>(
   // 从localStorage获取token
   const token = localStorage.getItem("satoken");
   if (token) {
-    headers["satoken"] = token;
+    headers["Authorization"] = token;
   }
 
   const defaultOptions: RequestInit = {

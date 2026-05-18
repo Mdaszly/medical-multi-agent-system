@@ -16,6 +16,7 @@ import * as authController from "./authController";
 import * as yuyueguanli from "./yuyueguanli";
 import * as guanliyuanguanli from "./guanliyuanguanli";
 import * as feiyongxiangguanli from "./feiyongxiangguanli";
+import * as consult from "./consult";
 export default {
   clinicalController,
   yonghuguanli,
@@ -31,4 +32,5 @@ export default {
   yuyueguanli,
   guanliyuanguanli,
   feiyongxiangguanli,
+  consult,
 };

@@ -1204,4 +1204,144 @@ declare namespace API {
     /** 注册时间 */
     createTime?: string;
   };
+
+  type PatientContext = {
+    /** 患者年龄 */
+    age?: number;
+    /** 患者性别 */
+    gender?: string;
+    /** 既往病史 */
+    medicalHistory?: string;
+    /** 过敏史 */
+    allergies?: string;
+    /** 当前用药 */
+    currentMedications?: string;
+    /** 症状描述 */
+    symptom?: string;
+  };
+
+  type ConsultRequest = {
+    /** 问诊问题 */
+    question: string;
+    /** 会话ID（可选，用于连续对话） */
+    sessionId?: string;
+    /** 患者上下文信息（可选） */
+    patientContext?: PatientContext;
+  };
+
+  type ConsultVO = {
+    /** AI回答内容 */
+    answer?: string;
+    /** 风险等级 */
+    riskLevel?: string;
+    /** 推荐科室 */
+    department?: string;
+    /** 建议列表 */
+    suggestions?: string[];
+    /** 证据列表 */
+    evidence?: Record<string, any>[];
+    /** Agent追踪信息 */
+    agentTrace?: Record<string, any>[];
+    /** 免责声明 */
+    disclaimer?: string;
+  };
+
+  type ChatSessionVO = {
+    /** 会话ID */
+    sessionId?: string;
+    /** 会话标题 */
+    title?: string;
+    /** 创建时间 */
+    createTime?: string;
+    /** 更新时间 */
+    updateTime?: string;
+  };
+
+  type ChatSessionHistoryVO = {
+    /** 今日会话 */
+    todaySessions?: ChatSessionVO[];
+    /** 近期会话（7天内） */
+    recentSessions?: ChatSessionVO[];
+    /** 更早的会话 */
+    olderSessions?: ChatSessionVO[];
+  };
+
+  type ChatMessageVO = {
+    /** 消息ID */
+    id?: string;
+    /** 会话ID */
+    sessionId?: string;
+    /** 消息角色：user/assistant */
+    role?: string;
+    /** 消息内容 */
+    content?: string;
+    /** Agent类型（assistant消息时可用） */
+    agentType?: string;
+    /** 风险等级（assistant消息时可用） */
+    riskLevel?: string;
+    /** 创建时间 */
+    createTime?: string;
+  };
+
+  type CreateSessionRequest = {
+    /** 场景类型（可选） */
+    scene?: string;
+    /** 会话标题（可选） */
+    title?: string;
+  };
+
+  type SessionIdRequest = {
+    /** 会话ID */
+    sessionId: string;
+  };
+
+  type listMessagesParams = {
+    /** 会话ID */
+    sessionId: string;
+    /** 消息数量限制（可选，默认20） */
+    limit?: number;
+  };
+
+  type ChatStreamResponse = {
+    /** 流式响应类型：content/error/done */
+    type?: string;
+    /** 内容片段 */
+    content?: string;
+    /** Agent类型 */
+    agentType?: string;
+    /** 风险等级 */
+    riskLevel?: string;
+    /** 完成标志 */
+    done?: boolean;
+    /** 错误信息 */
+    error?: string;
+    /** 会话ID */
+    sessionId?: string;
+    /** 完整响应数据 */
+    data?: ConsultVO;
+  };
+
+  type BaseResponseConsultVO = {
+    code?: number;
+    data?: ConsultVO;
+    message?: string;
+  };
+
+  type BaseResponseChatSessionVO = {
+    code?: number;
+    data?: ChatSessionVO;
+    message?: string;
+  };
+
+  type BaseResponseChatSessionHistoryVO = {
+    code?: number;
+    data?: ChatSessionHistoryVO;
+    message?: string;
+  };
+
+  type BaseResponseListChatMessageVO = {
+    code?: number;
+    data?: ChatMessageVO[];
+    message?: string;
+  };
 }
