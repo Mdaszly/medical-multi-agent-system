@@ -44,7 +44,6 @@ public class ScheduleController {
 
     @GetMapping("/list/doctor")
     @Operation(summary = "查询医生排班", description = "查询指定医生在日期范围内的排班信息")
-    @AuthCheck(mustRole = UserConstant.DOCTOR_ROLE)
     public BaseResponse<List<ScheduleVO>> listScheduleByDoctor(
             @Parameter(description = "医生ID", required = true)
             @RequestParam("doctorId") Long doctorId,

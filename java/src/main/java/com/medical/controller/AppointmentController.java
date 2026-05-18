@@ -67,16 +67,39 @@ public class AppointmentController {
     /**
      * 获取预约详情
      *
-     * <p>权限说明：只要登录就能访问
+     * <p>权限说明：
+     * - user角色：可以查看自己的预约
+     * - doctor角色：可以查看自己接诊的预约
+     * - admin角色：可以查看所有预约
      */
     @GetMapping("/get")
     @Operation(summary = "获取预约详情", description = "根据ID获取预约详情")
-    @AuthCheck
+    @AuthCheck(mustRoles = {UserConstant.USER_ROLE, UserConstant.DOCTOR_ROLE, UserConstant.ADMIN_ROLE})
     public BaseResponse<AppointmentVO> getAppointmentById(
             @Parameter(description = "预约ID", required = true)
             @RequestParam("id") Long id) {
         log.info("获取预约详情: id={}", id);
+        
+        // 获取当前登录用户ID和角色
+        Long currentUserId = cn.dev33.satoken.stp.StpUtil.getLoginIdAsLong();
+        String currentUserRole = (String) cn.dev33.satoken.stp.StpUtil.getSession().get("userRole");
+        
         AppointmentVO appointment = appointmentService.getAppointmentById(id);
+        
+        // 权限校验：非管理员只能查看自己相关的预约
+        if (!UserConstant.ADMIN_ROLE.equals(currentUserRole)) {
+            // 用户角色：只能查看自己的预约
+            if (UserConstant.USER_ROLE.equals(currentUserRole) && 
+                !currentUserId.equals(appointment.getUserId())) {
+                throw new com.medical.exception.BusinessException(com.medical.common.ErrorCode.NO_AUTH, "无权查看此预约");
+            }
+            // 医生角色：只能查看自己接诊的预约
+            if (UserConstant.DOCTOR_ROLE.equals(currentUserRole) && 
+                !currentUserId.equals(appointment.getDoctorId())) {
+                throw new com.medical.exception.BusinessException(com.medical.common.ErrorCode.NO_AUTH, "无权查看此预约");
+            }
+        }
+        
         return ResultUtils.success(appointment);
     }
 

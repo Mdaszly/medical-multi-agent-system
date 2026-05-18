@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -50,4 +51,8 @@ public class ClinicalState {
     //13. Pipeline执行过程中累积的错误信息（所有Agent可写入）
     @Builder.Default
     private List<String> errors = new ArrayList<>();
+
+    //14. 扩展字段（路由结果、问诊结构化输出等）
+    @Builder.Default
+    private Map<String, Object> extensions = new HashMap<>();
 }

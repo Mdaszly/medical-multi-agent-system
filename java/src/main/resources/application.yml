@@ -59,12 +59,20 @@ sa-token:
   is-read-session-by-cookie: false
   dao-type: redis-jackson
 
+medical:
+  ai:
+    chat-type: enhanced  # legacy: 仅临床 Pipeline; enhanced: 线上问诊 MedicalPipeline
+
 app:
   llm:
     provider: dashscope
   dashscope:
     api-key: ${DASHSCOPE_API_KEY:}
     model: ${DASHSCOPE_MODEL:qwen-max}
+    router-model: ${DASHSCOPE_ROUTER_MODEL:qwen-turbo}
+    compatible-base-url: ${DASHSCOPE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+    timeout-ms: 60000
+    max-retries: 2
   neo4j:
     uri: ${NEO4J_URI:bolt://localhost:7687}
     username: ${NEO4J_USER:neo4j}

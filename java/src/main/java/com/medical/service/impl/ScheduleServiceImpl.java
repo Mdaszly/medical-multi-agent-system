@@ -41,6 +41,7 @@ public class ScheduleServiceImpl implements ScheduleService {
     private final ScheduleMapper scheduleMapper;
     private final DoctorMapper doctorMapper;
     private final RedisCacheUtil redisCacheUtil;
+    private final com.medical.service.SlotService slotService;
 
     @Override
     public ScheduleVO getScheduleById(Long id) {
@@ -197,7 +198,9 @@ public class ScheduleServiceImpl implements ScheduleService {
 
         updateDoctorOnDutyStatus(request.getDoctorId());
 
-        String deptDateKey = String.format(RedisKeyConstant.SCHEDULE_DEPT_DATE, 
+        slotService.generateDefaultSlots(schedule.getId());
+
+        String deptDateKey = String.format(RedisKeyConstant.SCHEDULE_DEPT_DATE,
                 doctor.getDepartment(), request.getScheduleDate());
         redisCacheUtil.delete(deptDateKey);
 
@@ -301,6 +304,7 @@ public class ScheduleServiceImpl implements ScheduleService {
 
         Set<Long> doctorIds = new HashSet<>();
         Set<String> deptDateKeys = new HashSet<>();
+        List<Long> scheduleIds = new ArrayList<>();
 
         for (ScheduleAddRequest request : requests) {
             validateScheduleRequest(request);
@@ -316,15 +320,20 @@ public class ScheduleServiceImpl implements ScheduleService {
 
             Schedule schedule = buildSchedule(request, doctor);
             scheduleMapper.insert(schedule);
+            scheduleIds.add(schedule.getId());
             doctorIds.add(request.getDoctorId());
             
-            String key = String.format(RedisKeyConstant.SCHEDULE_DEPT_DATE, 
+            String key = String.format(RedisKeyConstant.SCHEDULE_DEPT_DATE,
                     doctor.getDepartment(), request.getScheduleDate());
             deptDateKeys.add(key);
         }
 
         for (Long doctorId : doctorIds) {
             updateDoctorOnDutyStatus(doctorId);
+        }
+
+        for (Long scheduleId : scheduleIds) {
+            slotService.generateDefaultSlots(scheduleId);
         }
 
         redisCacheUtil.deleteAll(deptDateKeys);

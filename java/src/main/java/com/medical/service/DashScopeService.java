@@ -6,13 +6,18 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 //1. DashScope服务，封装阿里云通义千问API调用
 //2. 支持标准ChatML格式的消息结构
@@ -26,6 +31,10 @@ public class DashScopeService {
     
     //5. 模型名称（默认qwen-max）
     private final String model;
+
+    private final String compatibleBaseUrl;
+
+    private final long timeoutMs;
     
     //6. JSON解析器
     private final ObjectMapper objectMapper;
@@ -37,11 +46,18 @@ public class DashScopeService {
     public DashScopeService(
             @Value("${app.dashscope.api-key:}") String apiKey,
             @Value("${app.dashscope.model:qwen-max}") String model,
+            @Value("${app.dashscope.compatible-base-url:https://dashscope.aliyuncs.com/compatible-mode/v1}")
+            String compatibleBaseUrl,
+            @Value("${app.dashscope.timeout-ms:60000}") long timeoutMs,
             ObjectMapper objectMapper) {
         this.apiKey = apiKey;
         this.model = model;
+        this.compatibleBaseUrl = compatibleBaseUrl;
+        this.timeoutMs = timeoutMs;
         this.objectMapper = objectMapper;
-        this.httpClient = HttpClient.newHttpClient();
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofMillis(timeoutMs))
+                .build();
     }
 
     //9. 核心方法：调用DashScope API生成响应
@@ -126,6 +142,63 @@ public class DashScopeService {
         }
         
         return content;
+    }
+
+    /**
+     * 百炼 OpenAI 兼容模式流式输出（SSE）
+     */
+    public void generateStream(String systemPrompt, String userPrompt, Consumer<String> onChunk) throws Exception {
+        Map<String, Object> message1 = Map.of("role", "system", "content", systemPrompt);
+        Map<String, Object> message2 = Map.of("role", "user", "content", userPrompt);
+        Map<String, Object> requestBody = Map.of(
+                "model", model,
+                "stream", true,
+                "temperature", 0.2,
+                "max_tokens", 2048,
+                "messages", List.of(message1, message2)
+        );
+
+        String jsonBody = objectMapper.writeValueAsString(requestBody);
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(compatibleBaseUrl + "/chat/completions"))
+                .timeout(Duration.ofMillis(timeoutMs))
+                .header("Authorization", "Bearer " + apiKey)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                .build();
+
+        HttpResponse<java.io.InputStream> response = httpClient.send(
+                request, HttpResponse.BodyHandlers.ofInputStream());
+        if (response.statusCode() != 200) {
+            String errorBody = new String(response.body().readAllBytes(), StandardCharsets.UTF_8);
+            throw new RuntimeException("DashScope stream error (status " + response.statusCode() + "): " + errorBody);
+        }
+
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(response.body(), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (!line.startsWith("data:")) {
+                    continue;
+                }
+                String data = line.substring(5).trim();
+                if (data.isEmpty() || "[DONE]".equals(data)) {
+                    continue;
+                }
+                JsonNode root = objectMapper.readTree(data);
+                JsonNode choices = root.path("choices");
+                if (!choices.isArray() || choices.isEmpty()) {
+                    continue;
+                }
+                JsonNode contentNode = choices.get(0).path("delta").path("content");
+                if (!contentNode.isMissingNode() && !contentNode.isNull()) {
+                    String delta = contentNode.asText();
+                    if (!delta.isEmpty()) {
+                        onChunk.accept(delta);
+                    }
+                }
+            }
+        }
     }
 
     //23. 检查API密钥是否已配置

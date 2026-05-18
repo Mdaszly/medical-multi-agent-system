@@ -3,6 +3,7 @@ package com.medical.service.impl;
 import com.medical.common.ErrorCode;
 import com.medical.exception.ThrowUtils;
 import com.medical.constant.AppointmentConstant;
+import com.medical.constant.ScheduleConstant;
 import com.medical.mapper.AppointmentSlotMapper;
 import com.medical.mapper.ScheduleMapper;
 import com.medical.model.dto.slot.SlotAddRequest;
@@ -18,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -28,6 +30,18 @@ public class SlotServiceImpl implements SlotService {
 
     private final AppointmentSlotMapper slotMapper;
     private final ScheduleMapper scheduleMapper;
+
+    private static final List<String> MORNING_TIMES = Arrays.asList(
+            "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30"
+    );
+    
+    private static final List<String> AFTERNOON_TIMES = Arrays.asList(
+            "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30"
+    );
+    
+    private static final List<String> EVENING_TIMES = Arrays.asList(
+            "20:00", "20:30", "21:00", "21:30", "22:00", "22:30", "23:00", "23:30"
+    );
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -150,13 +164,11 @@ public class SlotServiceImpl implements SlotService {
         ThrowUtils.throwIf(schedule == null, ErrorCode.PARAM_ERROR, "排班不存在");
 
         List<AppointmentSlot> slots = new ArrayList<>();
-        String[] times = {"08:00", "08:30", "09:00", "09:30", "10:00", "10:30",
-                "11:00", "11:30", "14:00", "14:30", "15:00", "15:30",
-                "16:00", "16:30", "17:00", "17:30"};
+        List<String> timeList = getTimeSlotsByShiftType(schedule.getShiftType());
 
-        for (int i = 0; i < times.length; i++) {
-            String timeStart = times[i];
-            String timeEnd = times[i + 1];
+        for (int i = 0; i < timeList.size(); i++) {
+            String timeStart = timeList.get(i);
+            String timeEnd = timeList.get(i + 1);
             String timeSlot = timeStart + "-" + timeEnd;
 
             AppointmentSlot slot = new AppointmentSlot();
@@ -173,7 +185,7 @@ public class SlotServiceImpl implements SlotService {
             slot.setVersion(0);
             slots.add(slot);
 
-            if (i == times.length - 2) {
+            if (i == timeList.size() - 2) {
                 break;
             }
         }
@@ -182,7 +194,22 @@ public class SlotServiceImpl implements SlotService {
             slotMapper.insert(slot);
         }
 
-        log.info("默认号源生成成功: count={}", slots.size());
+        log.info("默认号源生成成功: scheduleId={}, shiftType={}, count={}", 
+                scheduleId, schedule.getShiftType(), slots.size());
+    }
+    
+    private List<String> getTimeSlotsByShiftType(String shiftType) {
+        switch (shiftType) {
+            case ScheduleConstant.SHIFT_MORNING:
+                return MORNING_TIMES;
+            case ScheduleConstant.SHIFT_AFTERNOON:
+                return AFTERNOON_TIMES;
+            case ScheduleConstant.SHIFT_EVENING:
+                return EVENING_TIMES;
+            default:
+                log.warn("未知的班次类型: {}, 默认返回早班时间", shiftType);
+                return MORNING_TIMES;
+        }
     }
 
     private Schedule validateScheduleExists(Long scheduleId) {
