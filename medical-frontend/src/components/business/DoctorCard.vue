@@ -11,16 +11,16 @@ defineEmits(['click'])
 <template>
   <el-card class="doctor-card" shadow="hover" @click="$emit('click', doctor)">
     <div class="card-content">
-      <el-avatar :size="80" :src="doctor.avatarUrl" class="avatar" />
+      <el-avatar :size="80" class="avatar" />
       <div class="info">
         <h3 class="name">{{ doctor.doctorName }}</h3>
         <div class="tags">
           <el-tag size="small" type="info">{{ doctor.department }}</el-tag>
-          <el-tag size="small" type="success">{{ doctor.doctorTitle }}</el-tag>
+          <el-tag size="small" type="success">{{ doctor.title }}</el-tag>
         </div>
-        <p class="intro">{{ doctor.introduction }}</p>
+        <p class="intro">{{ doctor.description }}</p>
         <div class="footer">
-          <span class="price">挂号费：¥{{ doctor.registrationFee }}</span>
+          <span class="price">挂号费：¥{{ doctor.consultationFee }}</span>
           <el-button type="primary" size="small">查看详情</el-button>
         </div>
       </div>

@@ -1,24 +1,65 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { User, Document, Calendar } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { User, Document, Calendar, UserFilled } from '@element-plus/icons-vue'
+import { listUserPage } from '@/services/medical/yonghuguanli'
+import { listDoctorPage } from '@/services/medical/yishengguanli'
+import { listAppointmentPage } from '@/services/medical/yuyueguanli'
 
 const router = useRouter()
 
+const loading = ref(false)
+
 const stats = ref([
-  { title: '总用户', value: 120, icon: User, color: '#06b6d4' },
-  { title: '今日预约', value: 35, icon: Document, color: '#14b8a6' },
-  { title: '活跃医生', value: 12, icon: Calendar, color: '#0f766e' }
+  { title: '总用户', value: 0, icon: User, color: '#06b6d4' },
+  { title: '今日预约', value: 0, icon: Document, color: '#14b8a6' },
+  { title: '活跃医生', value: 0, icon: UserFilled, color: '#0f766e' }
 ])
 
 const quickActions = [
-  { title: '用户管理', path: '/admin/users', icon: User }
+  { title: '用户管理', path: '/admin/users', icon: User },
+  { title: '医生管理', path: '/admin/doctors', icon: UserFilled },
+  { title: '预约管理', path: '/admin/appointments', icon: Document },
+  { title: '排班管理', path: '/admin/schedules', icon: Calendar }
 ]
+
+const loadStats = async () => {
+  loading.value = true
+  try {
+    const today = new Date().toISOString().split('T')[0]
+    
+    const [userRes, doctorRes, appointmentRes] = await Promise.all([
+      listUserPage({ current: 1, pageSize: 1 }),
+      listDoctorPage({ current: 1, pageSize: 1 }),
+      listAppointmentPage({ current: 1, pageSize: 1, scheduleDate: today })
+    ])
+    
+    const userCount = userRes.data?.total || 0
+    const doctorCount = doctorRes.data?.total || 0
+    const todayAppointmentCount = appointmentRes.data?.total || 0
+    
+    stats.value = [
+      { title: '总用户', value: userCount, icon: User, color: '#06b6d4' },
+      { title: '今日预约', value: todayAppointmentCount, icon: Document, color: '#14b8a6' },
+      { title: '活跃医生', value: doctorCount, icon: UserFilled, color: '#0f766e' }
+    ]
+  } catch (error) {
+    console.error('加载统计数据失败', error)
+    ElMessage.error('加载统计数据失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  loadStats()
+})
 </script>
 
 <template>
   <div class="admin-dashboard">
-    <div class="stats-cards">
+    <div class="stats-cards" v-loading="loading">
       <el-card v-for="stat in stats" :key="stat.title" class="stat-card">
         <div class="stat-content">
           <div class="stat-icon" :style="{ background: stat.color + '20' }">
@@ -112,6 +153,7 @@ const quickActions = [
 .quick-actions {
   display: flex;
   gap: 16px;
+  flex-wrap: wrap;
 }
 
 .action-item {

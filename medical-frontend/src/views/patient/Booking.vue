@@ -28,7 +28,7 @@ const loadData = async () => {
     
     const scheduleRes = await listScheduleByDoctor({ doctorId: Number(doctorId) })
     if (scheduleRes.data) {
-      const uniqueDates = [...new Set(scheduleRes.data.map((s: any) => s.scheduleDate))]
+      const uniqueDates = [...new Set(scheduleRes.data.map((s: any) => s.scheduleDate))] as string[]
       availableDates.value = uniqueDates
     }
   } catch (error) {
@@ -43,15 +43,18 @@ const onDateSelect = async (date: string) => {
   selectedPeriod.value = ''
   const doctorId = route.params.doctorId as string
   try {
-    const res = await getAppointmentSlots({ 
-      scheduleId: Number(doctorId),
-      date: date 
-    })
-    if (res.data) {
-      availablePeriods.value = res.data.map((slot: any) => ({
-        period: slot.timeSlot,
-        available: slot.availableCount > 0
-      }))
+    const scheduleRes = await listScheduleByDoctor({ doctorId: Number(doctorId) })
+    if (scheduleRes.data) {
+      const schedule = scheduleRes.data.find((s: any) => s.scheduleDate === date)
+      if (schedule) {
+        const res = await getAppointmentSlots({ scheduleId: schedule.id! })
+        if (res.data) {
+          availablePeriods.value = res.data.map((slot: any) => ({
+            period: slot.timeSlot,
+            available: slot.availableSlots && slot.availableSlots > 0
+          }))
+        }
+      }
     }
   } catch (error) {
     console.error('加载时段信息失败', error)
@@ -67,13 +70,20 @@ const handleSubmit = async () => {
   submitting.value = true
   try {
     const doctorId = route.params.doctorId as string
-    await createAppointment({
-      scheduleId: Number(doctorId),
-      date: selectedDate.value,
-      timeSlot: selectedPeriod.value
-    })
-    ElMessage.success('预约成功！')
-    router.push('/patient/my-appointments')
+    const scheduleRes = await listScheduleByDoctor({ doctorId: Number(doctorId) })
+    if (scheduleRes.data) {
+      const schedule = scheduleRes.data.find((s: any) => s.scheduleDate === selectedDate.value)
+      if (schedule) {
+        await createAppointment({
+          scheduleId: schedule.id!,
+          timeSlot: selectedPeriod.value
+        })
+        ElMessage.success('预约成功！')
+        router.push('/patient/my-appointments')
+      } else {
+        ElMessage.error('未找到对应排班')
+      }
+    }
   } catch (error) {
     ElMessage.error('预约失败')
   } finally {
@@ -94,11 +104,11 @@ onMounted(() => {
       </template>
       
       <div class="doctor-info">
-        <el-avatar :size="60" :src="doctor.avatarUrl" style="background: #14b8a6;" />
+        <el-avatar :size="60" style="background: #14b8a6;" />
         <div>
           <h3>{{ doctor.doctorName }}</h3>
-          <p>{{ doctor.department }} · {{ doctor.doctorTitle }}</p>
-          <p class="price">挂号费：¥{{ doctor.registrationFee }}</p>
+          <p>{{ doctor.department }} · {{ doctor.title }}</p>
+          <p class="price">挂号费：¥{{ doctor.consultationFee }}</p>
         </div>
       </div>
       
@@ -157,7 +167,7 @@ onMounted(() => {
         </div>
         <div class="summary-row total">
           <span>挂号费：</span>
-          <span class="price">¥{{ doctor.registrationFee }}</span>
+          <span class="price">¥{{ doctor.consultationFee }}</span>
         </div>
       </div>
       

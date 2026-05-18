@@ -1,25 +1,70 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { Document, Calendar, User } from '@element-plus/icons-vue'
+import { useAuthStore } from '@/stores/auth'
+import { listAppointmentByDoctor } from '@/services/medical/yuyueguanli'
+import { listScheduleByDoctor } from '@/services/medical/paibanguanli'
 
 const router = useRouter()
+const authStore = useAuthStore()
+
+const loading = ref(false)
 
 const stats = ref([
-  { title: '今日接诊', value: 5, icon: Document, color: '#06b6d4' },
-  { title: '本周预约', value: 32, icon: Calendar, color: '#14b8a6' },
-  { title: '待处理', value: 3, icon: User, color: '#f59e0b' }
+  { title: '今日接诊', value: 0, icon: Document, color: '#06b6d4' },
+  { title: '本周预约', value: 0, icon: Calendar, color: '#14b8a6' },
+  { title: '待处理', value: 0, icon: User, color: '#f59e0b' }
 ])
+
+const todayAppointments = ref<any[]>([])
 
 const quickActions = [
   { title: '查看排班', path: '/doctor/schedule', icon: Calendar },
   { title: '接诊列表', path: '/doctor/appointments', icon: Document }
 ]
+
+const loadStats = async () => {
+  loading.value = true
+  try {
+    if (!authStore.userInfo) return
+    const [appointmentRes, scheduleRes] = await Promise.all([
+      listAppointmentByDoctor({}),
+      listScheduleByDoctor({ doctorId: authStore.userInfo.id! })
+    ])
+    
+    if (appointmentRes.data) {
+      const appointments = appointmentRes.data
+      const today = new Date().toISOString().split('T')[0]
+      const todayCount = appointments.filter((a: any) => a.appointmentDate === today).length
+      const pendingCount = appointments.filter((a: any) => a.status === 0).length
+      const weekCount = appointments.length
+      
+      stats.value = [
+        { title: '今日接诊', value: todayCount, icon: Document, color: '#06b6d4' },
+        { title: '本周预约', value: weekCount, icon: Calendar, color: '#14b8a6' },
+        { title: '待处理', value: pendingCount, icon: User, color: '#f59e0b' }
+      ]
+      
+      todayAppointments.value = appointments.filter((a: any) => a.appointmentDate === today && a.status === 0).slice(0, 5)
+    }
+  } catch (error) {
+    console.error('加载统计数据失败', error)
+    ElMessage.error('加载统计数据失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  loadStats()
+})
 </script>
 
 <template>
   <div class="dashboard">
-    <div class="stats-cards">
+    <div class="stats-cards" v-loading="loading">
       <el-card v-for="stat in stats" :key="stat.title" class="stat-card">
         <div class="stat-content">
           <div class="stat-icon" :style="{ background: stat.color + '20' }">
@@ -56,7 +101,17 @@ const quickActions = [
       <template #header>
         <span>今日待接诊</span>
       </template>
-      <el-empty description="暂无待接诊患者" />
+      <el-table v-if="todayAppointments.length > 0" :data="todayAppointments" style="width: 100%">
+        <el-table-column prop="userName" label="患者姓名" />
+        <el-table-column prop="timeSlot" label="预约时间" />
+        <el-table-column prop="appointmentNo" label="预约编号" />
+        <el-table-column label="操作" width="120">
+          <template #default="{ row }">
+            <el-button type="primary" size="small">接诊</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-empty v-else description="暂无待接诊患者" />
     </el-card>
   </div>
 </template>

@@ -334,18 +334,26 @@ CREATE INDEX idx_drug_price_drug_id ON drug_price(drug_id);
 CREATE INDEX idx_drug_price_price_type ON drug_price(price_type);
 
 -- ------------------------------
--- 13. 健康档案表
+-- 13. 健康档案表（医生/药师/管理员查看完整健康档案）
 -- ------------------------------
 DROP TABLE IF EXISTS health_profile;
 CREATE TABLE IF NOT EXISTS health_profile (
     id                  BIGSERIAL PRIMARY KEY,
-    user_id             BIGINT NOT NULL,                          -- 用户ID
-    user_name           VARCHAR(50) NOT NULL,                     -- 用户姓名
+    user_id             BIGINT NOT NULL,                          -- 用户ID（关联user表）
+    user_name           VARCHAR(50) NOT NULL,                     -- 用户姓名（冗余）
     chronic_diseases    TEXT,                                     -- 慢性病史
     allergy_history     TEXT,                                     -- 过敏史
     medication_history  TEXT,                                     -- 用药史
     family_history      TEXT,                                     -- 家族病史
+    surgical_history    TEXT,                                     -- 手术史
+    vaccination_history TEXT,                                     -- 疫苗接种史
+    physical_exam       TEXT,                                     -- 体检记录
+    height              DECIMAL(5,2),                             -- 身高(cm)
+    weight              DECIMAL(5,2),                             -- 体重(kg)
+    blood_type          VARCHAR(10),                              -- 血型
+    blood_pressure      VARCHAR(20),                              -- 血压
     remark              TEXT,                                     -- 备注
+    create_time         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     update_time         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -475,7 +483,135 @@ ALTER TABLE bill ALTER COLUMN version SET NOT NULL;
 SELECT id, version, status FROM payment LIMIT 5;
 SELECT id, version, status FROM bill LIMIT 5;
 
+-- ==================== 健康档案关联更新（同步用户基础信息到健康档案） ====================
 
+-- 更新健康档案表中的用户姓名（从user表同步）
+UPDATE health_profile hp
+SET user_name = u.user_name
+FROM "user" u
+WHERE hp.user_id = u.id AND hp.user_name != u.user_name;
+
+-- ==================== 预约表字段增强 ====================
+
+-- 添加就诊类型
+ALTER TABLE appointment ADD COLUMN IF NOT EXISTS visit_type VARCHAR(20);
+COMMENT ON COLUMN appointment.visit_type IS '就诊类型：初诊/复诊';
+
+-- 添加患者主诉
+ALTER TABLE appointment ADD COLUMN IF NOT EXISTS chief_complaint VARCHAR(500);
+COMMENT ON COLUMN appointment.chief_complaint IS '患者主诉';
+
+-- 添加处方ID
+ALTER TABLE appointment ADD COLUMN IF NOT EXISTS prescription_id BIGINT;
+COMMENT ON COLUMN appointment.prescription_id IS '关联处方ID';
+
+-- =============================================
+-- 健康档案表字段补充
+-- =============================================
+
+-- 1. 添加手术史字段
+ALTER TABLE health_profile
+    ADD COLUMN IF NOT EXISTS surgical_history TEXT;
+COMMENT ON COLUMN health_profile.surgical_history IS '手术史';
+
+-- 2. 添加疫苗接种史字段
+ALTER TABLE health_profile
+    ADD COLUMN IF NOT EXISTS vaccination_history TEXT;
+COMMENT ON COLUMN health_profile.vaccination_history IS '疫苗接种史';
+
+-- 3. 添加体检记录字段
+ALTER TABLE health_profile
+    ADD COLUMN IF NOT EXISTS physical_exam TEXT;
+COMMENT ON COLUMN health_profile.physical_exam IS '体检记录';
+
+-- 4. 添加身高字段
+ALTER TABLE health_profile
+    ADD COLUMN IF NOT EXISTS height DECIMAL(5,2);
+COMMENT ON COLUMN health_profile.height IS '身高(cm)';
+
+-- 5. 添加体重字段
+ALTER TABLE health_profile
+    ADD COLUMN IF NOT EXISTS weight DECIMAL(5,2);
+COMMENT ON COLUMN health_profile.weight IS '体重(kg)';
+
+-- 6. 添加血型字段
+ALTER TABLE health_profile
+    ADD COLUMN IF NOT EXISTS blood_type VARCHAR(10);
+COMMENT ON COLUMN health_profile.blood_type IS '血型';
+
+-- 7. 添加血压字段
+ALTER TABLE health_profile
+    ADD COLUMN IF NOT EXISTS blood_pressure VARCHAR(20);
+COMMENT ON COLUMN health_profile.blood_pressure IS '血压';
+
+-- 8. 添加备注字段
+ALTER TABLE health_profile
+    ADD COLUMN IF NOT EXISTS remark TEXT;
+COMMENT ON COLUMN health_profile.remark IS '备注';
+
+-- 9. 添加创建时间字段（如果不存在）
+ALTER TABLE health_profile
+    ADD COLUMN IF NOT EXISTS create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+COMMENT ON COLUMN health_profile.create_time IS '创建时间';
+
+-- 10. 更新更新时间字段的默认值
+ALTER TABLE health_profile
+    ALTER COLUMN update_time SET DEFAULT CURRENT_TIMESTAMP;
+
+-- 11. 创建唯一索引（如果不存在）
+CREATE INDEX IF NOT EXISTS uk_health_profile_user_id ON health_profile(user_id);
+
+-- =============================================
+-- 验证查询
+-- =============================================
+SELECT
+    column_name,
+    data_type,
+    is_nullable,
+    "column_default"
+FROM information_schema.columns
+WHERE table_name = 'health_profile'
+ORDER BY ordinal_position;
+
+
+
+-- ------------------------------
+-- 线上问诊：会话表
+-- ------------------------------
+DROP TABLE IF EXISTS chat_message;
+DROP TABLE IF EXISTS chat_session;
+CREATE TABLE IF NOT EXISTS chat_session (
+    id                  BIGSERIAL PRIMARY KEY,
+    session_id          VARCHAR(64) NOT NULL,
+    user_id             BIGINT NOT NULL,
+    title               VARCHAR(200),
+    scene               VARCHAR(32) NOT NULL DEFAULT 'consultation',
+    create_time         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    is_delete           SMALLINT DEFAULT 0
+);
+
+CREATE UNIQUE INDEX uk_chat_session_session_id ON chat_session(session_id);
+CREATE INDEX idx_chat_session_user_id ON chat_session(user_id);
+CREATE INDEX idx_chat_session_update_time ON chat_session(update_time);
+CREATE INDEX idx_chat_session_is_delete ON chat_session(is_delete);
+
+-- ------------------------------
+-- 线上问诊：消息表
+-- ------------------------------
+CREATE TABLE IF NOT EXISTS chat_message (
+    id                  BIGSERIAL PRIMARY KEY,
+    session_id          VARCHAR(64) NOT NULL,
+    role                VARCHAR(20) NOT NULL,
+    content             TEXT NOT NULL,
+    agent_type          VARCHAR(32),
+    risk_level          VARCHAR(32),
+    metadata_json       TEXT,
+    create_time         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_chat_message_session_id ON chat_message(session_id);
+CREATE INDEX idx_chat_message_create_time ON chat_message(create_time);
 
 -- =============================================
 -- 脚本结束

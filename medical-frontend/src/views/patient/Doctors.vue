@@ -26,7 +26,7 @@ const loadDoctors = async () => {
       current: pagination.value.page,
       pageSize: pagination.value.pageSize,
       department: selectedDepartment.value !== '全部' ? selectedDepartment.value : undefined,
-      searchKey: searchKeyword.value || undefined
+      doctorName: searchKeyword.value || undefined
     })
     if (res.data?.records) {
       doctors.value = res.data.records

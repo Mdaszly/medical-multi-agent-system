@@ -1,15 +1,53 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { listSchedulePage } from '@/services/medical/paibanguanli'
 
 const loading = ref(false)
 
-// 模拟排班数据
-const schedules = ref([
-  { id: 1, doctorName: '李医生', department: '心内科', scheduleDate: '2026-05-19', timeSlot: '上午', maxAppointments: 20, currentAppointments: 15, status: '正常' },
-  { id: 2, doctorName: '李医生', department: '心内科', scheduleDate: '2026-05-19', timeSlot: '下午', maxAppointments: 15, currentAppointments: 8, status: '正常' },
-  { id: 3, doctorName: '王医生', department: '神经内科', scheduleDate: '2026-05-19', timeSlot: '上午', maxAppointments: 25, currentAppointments: 20, status: '正常' }
-])
+const schedules = ref<any[]>([])
+
+const pagination = ref({
+  page: 1,
+  pageSize: 10,
+  total: 0
+})
+
+const statusMap: Record<number, { label: string; type: string }> = {
+  0: { label: '休息', type: 'info' },
+  1: { label: '可预约', type: 'success' },
+  2: { label: '已满', type: 'danger' }
+}
+
+const loadSchedules = async () => {
+  loading.value = true
+  try {
+    const res = await listSchedulePage({
+      current: pagination.value.page,
+      pageSize: pagination.value.pageSize
+    })
+    if (res.data?.records) {
+      schedules.value = res.data.records.map((s: any) => ({
+        id: s.id,
+        doctorName: s.doctorName,
+        department: s.department,
+        scheduleDate: s.scheduleDate,
+        morningSlots: s.morningSlots,
+        afternoonSlots: s.afternoonSlots,
+        eveningSlots: s.eveningSlots,
+        maxAppointments: 20,
+        currentAppointments: (s.morningSlots?.length || 0) + (s.afternoonSlots?.length || 0) + (s.eveningSlots?.length || 0),
+        status: s.status
+      }))
+      pagination.value.total = res.data.total || 0
+    }
+  } catch (error) {
+    console.error('加载排班列表失败', error)
+    ElMessage.error('加载排班列表失败')
+  } finally {
+    loading.value = false
+  }
+}
 
 const handleEdit = (schedule: any) => {
   ElMessage.info('编辑排班')
@@ -18,6 +56,10 @@ const handleEdit = (schedule: any) => {
 const handleAdd = () => {
   ElMessage.info('添加排班')
 }
+
+onMounted(() => {
+  loadSchedules()
+})
 </script>
 
 <template>
@@ -30,11 +72,17 @@ const handleAdd = () => {
         </div>
       </template>
 
-      <el-table :data="schedules" style="width: 100%;">
+      <el-table :data="schedules" style="width: 100%;" v-loading="loading">
         <el-table-column prop="doctorName" label="医生" />
         <el-table-column prop="department" label="科室" />
         <el-table-column prop="scheduleDate" label="日期" />
-        <el-table-column prop="timeSlot" label="时段" />
+        <el-table-column label="时段">
+          <template #default="{ row }">
+            <el-tag v-if="row.morningSlots?.length" type="info">上午</el-tag>
+            <el-tag v-if="row.afternoonSlots?.length" type="success">下午</el-tag>
+            <el-tag v-if="row.eveningSlots?.length" type="warning">晚间</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="预约情况">
           <template #default="{ row }">
             {{ row.currentAppointments }} / {{ row.maxAppointments }}
@@ -47,7 +95,7 @@ const handleAdd = () => {
         </el-table-column>
         <el-table-column prop="status" label="状态">
           <template #default="{ row }">
-            <el-tag type="success">{{ row.status }}</el-tag>
+            <el-tag :type="statusMap[row.status]?.type">{{ statusMap[row.status]?.label }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="120">
@@ -56,6 +104,18 @@ const handleAdd = () => {
           </template>
         </el-table-column>
       </el-table>
+      
+      <el-pagination
+        v-model:current-page="pagination.page"
+        v-model:page-size="pagination.pageSize"
+        :total="pagination.total"
+        layout="total, prev, pager, next"
+        style="margin-top: 20px; text-align: center;"
+        @current-change="loadSchedules"
+        @size-change="loadSchedules"
+      />
+      
+      <el-empty v-if="!loading && schedules.length === 0" description="暂无排班" />
     </el-card>
   </div>
 </template>

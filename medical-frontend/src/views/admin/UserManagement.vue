@@ -1,34 +1,70 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
+import { listUserPage, disableUser, enableUser } from '@/services/medical/yonghuguanli'
 
 const searchKeyword = ref('')
-const users = ref([
-  { id: 1, username: 'zhangsan', name: '张三', role: '患者', status: '正常', phone: '13800138001' },
-  { id: 2, username: 'lisi', name: '李医生', role: '医生', status: '正常', phone: '13800138002' },
-  { id: 3, username: 'admin', name: '管理员', role: '管理员', status: '正常', phone: '13800138003' }
-])
+const loading = ref(false)
 
-const roleMap: Record<string, string> = {
-  '患者': 'info',
-  '医生': 'success',
-  '管理员': 'warning'
+const users = ref<any[]>([])
+
+const pagination = ref({
+  page: 1,
+  pageSize: 10,
+  total: 0
+})
+
+const roleMap: Record<string, { label: string; type: string }> = {
+  'user': { label: '患者', type: 'info' },
+  'doctor': { label: '医生', type: 'success' },
+  'admin': { label: '管理员', type: 'warning' },
+  'pharmacist': { label: '药师', type: 'primary' }
 }
 
-const statusMap: Record<string, string> = {
-  '正常': 'success',
-  '禁用': 'danger'
+const statusMap: Record<number, { label: string; type: string }> = {
+  1: { label: '正常', type: 'success' },
+  0: { label: '禁用', type: 'danger' }
 }
 
-const handleToggleStatus = (user: any) => {
-  const newStatus = user.status === '正常' ? '禁用' : '正常'
-  user.status = newStatus
-  ElMessage.success(`用户${newStatus === '禁用' ? '禁用' : '启用'}成功`)
+const loadUsers = async () => {
+  loading.value = true
+  try {
+    const res = await listUserPage({
+      current: pagination.value.page,
+      pageSize: pagination.value.pageSize,
+      userName: searchKeyword.value || undefined
+    })
+    if (res.data?.records) {
+      users.value = res.data.records
+      pagination.value.total = res.data.total || 0
+    }
+  } catch (error) {
+    console.error('加载用户列表失败', error)
+    ElMessage.error('加载用户列表失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleToggleStatus = async (user: any) => {
+  try {
+    if (user.userStatus === 1) {
+      await disableUser({ id: user.id })
+      user.userStatus = 0
+      ElMessage.success('用户禁用成功')
+    } else {
+      await enableUser({ id: user.id })
+      user.userStatus = 1
+      ElMessage.success('用户启用成功')
+    }
+  } catch (error) {
+    ElMessage.error('操作失败')
+  }
 }
 
 const handleEdit = (user: any) => {
-  ElMessage.info(`编辑用户: ${user.name}`)
+  ElMessage.info(`编辑用户: ${user.userName}`)
 }
 
 const handleDelete = async (user: any) => {
@@ -39,10 +75,20 @@ const handleDelete = async (user: any) => {
       type: 'warning'
     })
     ElMessage.success('用户已删除')
+    loadUsers()
   } catch {
     // 用户取消
   }
 }
+
+const handleSearch = () => {
+  pagination.value.page = 1
+  loadUsers()
+}
+
+onMounted(() => {
+  loadUsers()
+})
 </script>
 
 <template>
@@ -51,45 +97,58 @@ const handleDelete = async (user: any) => {
       <template #header>
         <div class="header-actions">
           <span>用户管理</span>
-          <div class="search-box">
-            <el-input v-model="searchKeyword" placeholder="搜索用户" clearable>
+          <div class="header-right">
+            <el-input v-model="searchKeyword" placeholder="搜索用户" clearable style="width: 250px; margin-right: 12px;" @keyup.enter="handleSearch">
               <template #append>
-                <el-button :icon="Search" />
+                <el-button :icon="Search" @click="handleSearch" />
               </template>
             </el-input>
+            <el-button type="primary">+ 添加用户</el-button>
           </div>
         </div>
       </template>
       
-      <el-table :data="users" style="width: 100%">
-        <el-table-column prop="username" label="用户名" />
-        <el-table-column prop="name" label="姓名" />
-        <el-table-column prop="role" label="角色">
+      <el-table :data="users" style="width: 100%" v-loading="loading">
+        <el-table-column prop="userAccount" label="用户名" />
+        <el-table-column prop="userName" label="姓名" />
+        <el-table-column prop="userRole" label="角色">
           <template #default="{ row }">
-            <el-tag :type="roleMap[row.role]">{{ row.role }}</el-tag>
+            <el-tag :type="roleMap[row.userRole]?.type">{{ roleMap[row.userRole]?.label }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="phone" label="手机号" />
-        <el-table-column prop="status" label="状态">
+        <el-table-column prop="userStatus" label="状态">
           <template #default="{ row }">
-            <el-tag :type="statusMap[row.status]">{{ row.status }}</el-tag>
+            <el-tag :type="statusMap[row.userStatus]?.type">{{ statusMap[row.userStatus]?.label }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="250">
           <template #default="{ row }">
             <el-button type="primary" size="small" link @click="handleEdit(row)">编辑</el-button>
             <el-button 
-              :type="row.status === '正常' ? 'warning' : 'success'" 
+              :type="row.userStatus === 1 ? 'warning' : 'success'" 
               size="small" 
               link 
               @click="handleToggleStatus(row)"
             >
-              {{ row.status === '正常' ? '禁用' : '启用' }}
+              {{ row.userStatus === 1 ? '禁用' : '启用' }}
             </el-button>
             <el-button type="danger" size="small" link @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
+      
+      <el-pagination
+        v-model:current-page="pagination.page"
+        v-model:page-size="pagination.pageSize"
+        :total="pagination.total"
+        layout="total, prev, pager, next"
+        style="margin-top: 20px; text-align: center;"
+        @current-change="loadUsers"
+        @size-change="loadUsers"
+      />
+      
+      <el-empty v-if="!loading && users.length === 0" description="暂无用户" />
     </el-card>
   </div>
 </template>
@@ -103,9 +162,5 @@ const handleDelete = async (user: any) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-}
-
-.search-box {
-  width: 300px;
 }
 </style>

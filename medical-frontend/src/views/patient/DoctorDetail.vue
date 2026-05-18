@@ -24,12 +24,14 @@ const loadData = async () => {
     }
     if (scheduleRes.data) {
       schedules.value = scheduleRes.data.map((s: any) => ({
+        id: s.id,
         date: s.scheduleDate,
-        periods: [
-          { period: '上午', available: s.morningSlots?.length || 0, total: 10 },
-          { period: '下午', available: s.afternoonSlots?.length || 0, total: 10 },
-          { period: '晚间', available: s.eveningSlots?.length || 0, total: 5 }
-        ]
+        shiftType: s.shiftType,
+        shiftName: s.shiftName,
+        maxAppointments: s.maxAppointments || 0,
+        currentAppointments: s.currentAppointments || 0,
+        available: (s.maxAppointments || 0) - (s.currentAppointments || 0),
+        status: s.status
       }))
     }
   } catch (error) {
@@ -52,16 +54,16 @@ onMounted(() => {
   <div class="doctor-detail" v-loading="loading">
     <el-card v-if="doctor" class="info-card">
       <div class="info-content">
-        <el-avatar :size="120" :src="doctor.avatarUrl" style="background: #14b8a6;" />
+        <el-avatar :size="120" style="background: #14b8a6;" />
         <div class="info">
           <h2>{{ doctor.doctorName }}</h2>
           <div class="tags" style="margin: 12px 0;">
             <el-tag type="info">{{ doctor.department }}</el-tag>
-            <el-tag type="success">{{ doctor.doctorTitle }}</el-tag>
+            <el-tag type="success">{{ doctor.title }}</el-tag>
           </div>
           <p class="specialty">擅长：{{ doctor.specialty }}</p>
-          <p class="intro">{{ doctor.introduction }}</p>
-          <p class="price">挂号费：<strong>¥{{ doctor.registrationFee }}</strong></p>
+          <p class="intro">{{ doctor.description }}</p>
+          <p class="price">挂号费：<strong>¥{{ doctor.consultationFee }}</strong></p>
           <el-button type="primary" size="large" @click="handleBooking">立即预约</el-button>
         </div>
       </div>
@@ -71,12 +73,12 @@ onMounted(() => {
       <template #header>
         <span>排班信息</span>
       </template>
-      <div v-for="schedule in schedules" :key="schedule.date" class="schedule-item">
+      <div v-for="schedule in schedules" :key="schedule.id" class="schedule-item">
         <h4>{{ schedule.date }}</h4>
         <div class="periods">
-          <div v-for="period in schedule.periods" :key="period.period" class="period" :class="{ full: period.available === 0 }">
-            <span>{{ period.period }}</span>
-            <span class="status">{{ period.available > 0 ? `可预约(${period.available}/${period.total})` : '已约满' }}</span>
+          <div class="period" :class="{ full: schedule.available === 0 }">
+            <span>{{ schedule.shiftName || schedule.shiftType }}</span>
+            <span class="status">{{ schedule.available > 0 ? `可预约(${schedule.available}/${schedule.maxAppointments})` : '已约满' }}</span>
           </div>
         </div>
       </div>
