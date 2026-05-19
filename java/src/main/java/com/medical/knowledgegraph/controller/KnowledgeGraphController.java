@@ -5,6 +5,7 @@ import com.medical.knowledgegraph.model.dto.QueryResultDTO;
 import com.medical.knowledgegraph.service.datainput.DataImportService;
 import com.medical.knowledgegraph.service.extraction.EntityExtractionService;
 import com.medical.knowledgegraph.service.neo4j.KnowledgeGraphService;
+import com.medical.service.sync.SymptomIcdSyncService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -30,6 +31,7 @@ public class KnowledgeGraphController {
     private final DataImportService dataImportService;
     private final KnowledgeGraphService knowledgeGraphService;
     private final EntityExtractionService entityExtractionService;
+    private final SymptomIcdSyncService symptomIcdSyncService;
 
     // ==================== 数据导入API ====================
 
@@ -181,6 +183,28 @@ public class KnowledgeGraphController {
     public ResponseEntity<Map<String, Long>> getStatistics() {
         Map<String, Long> stats = knowledgeGraphService.getStatistics();
         return ResponseEntity.ok(stats);
+    }
+
+    /**
+     * 症状名称联想
+     */
+    @GetMapping("/symptoms/suggest")
+    public ResponseEntity<java.util.List<String>> suggestSymptoms(
+            @RequestParam String prefix,
+            @RequestParam(defaultValue = "10") int limit) {
+        return ResponseEntity.ok(knowledgeGraphService.suggestSymptomNames(prefix, limit));
+    }
+
+    /**
+     * 将 Neo4j 权威数据同步至 PostgreSQL 症状-ICD 表
+     */
+    @PostMapping("/sync-to-rdb")
+    public ResponseEntity<Map<String, Object>> syncToRdb() {
+        int count = symptomIcdSyncService.syncFromNeo4j();
+        Map<String, Object> body = new HashMap<>();
+        body.put("syncedRelations", count);
+        body.put("message", "同步完成");
+        return ResponseEntity.ok(body);
     }
 
     /**

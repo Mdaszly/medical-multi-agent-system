@@ -50,10 +50,12 @@ public class AppointmentGuideAgent extends AbstractStructuredConsultAgent {
     }
 
     @Override
-    protected void enrichContext(ClinicalState state) {
+    protected void enrichAgentSpecificContext(ClinicalState state) {
         String dept = guessDepartment(state.getRawInput());
         String guide = appointmentGuideService.suggestDoctors(dept);
-        state.getExtensions().put("toolContext", guide);
+        Object existing = state.getExtensions().get("toolContext");
+        String merged = existing instanceof String s && !s.isBlank() ? s + "\n\n" + guide : guide;
+        state.getExtensions().put("toolContext", merged);
         appendTrace(state, "Tool", "queryAppointmentSlots", "查询科室可预约医生");
     }
 

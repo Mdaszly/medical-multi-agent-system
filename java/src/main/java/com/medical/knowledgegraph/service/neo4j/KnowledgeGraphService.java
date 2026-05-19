@@ -2,6 +2,7 @@ package com.medical.knowledgegraph.service.neo4j;
 
 import com.medical.knowledgegraph.exception.KnowledgeGraphException;
 import com.medical.knowledgegraph.model.dto.QueryResultDTO;
+import com.medical.knowledgegraph.model.dto.SymptomDiagnosisRow;
 import com.medical.knowledgegraph.model.entity.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -336,19 +337,217 @@ public class KnowledgeGraphService {
         return executeQuery(cypher, params);
     }
 
+    private static final String SYMPTOM_DIAGNOSIS_CYPHER =
+            "MATCH (s:Symptom {name: $name})-[:INDICATES]->(d:Disease) " +
+            "OPTIONAL MATCH (d)-[:CLASSIFIED_AS]->(i:ICD10) " +
+            "RETURN s.name AS symptom, d.name AS disease, " +
+            "       d.diseaseCode AS diseaseCode, " +
+            "       i.code AS icdCode, i.descriptionCn AS icdDescription, " +
+            "       coalesce(r.weight, 1.0) AS weight " +
+            "ORDER BY weight DESC";
+
+    private static final String SYMPTOM_DIAGNOSIS_FUZZY_CYPHER =
+            "MATCH (s:Symptom)-[:INDICATES]->(d:Disease) " +
+            "WHERE s.name CONTAINS $keyword " +
+            "OPTIONAL MATCH (d)-[:CLASSIFIED_AS]->(i:ICD10) " +
+            "RETURN s.name AS symptom, d.name AS disease, " +
+            "       d.diseaseCode AS diseaseCode, " +
+            "       i.code AS icdCode, i.descriptionCn AS icdDescription, " +
+            "       1.0 AS weight " +
+            "LIMIT $limit";
+
     /**
-     * 查询症状关联的疾病和ICD编码
+     * 查询症状关联的疾病和ICD编码（兼容旧 API，内部走表格化查询）
      */
     public QueryResultDTO findSymptomDiagnoses(String symptomName) {
-        String cypher = 
-                "MATCH (s:Symptom {name: $name})-[:INDICATES]->(d:Disease) " +
+        List<SymptomDiagnosisRow> rows = findSymptomDiagnosesRows(symptomName);
+        long startTime = System.currentTimeMillis();
+        QueryResultDTO queryResult = QueryResultDTO.builder()
+                .query(SYMPTOM_DIAGNOSIS_CYPHER)
+                .queryType("SYMPTOM_DIAGNOSIS")
+                .executionTime(0L)
+                .nodes(new ArrayList<>())
+                .relations(new ArrayList<>())
+                .paths(new ArrayList<>())
+                .records(rows.stream().map(this::rowToMap).collect(Collectors.toList()))
+                .totalCount(rows.size())
+                .build();
+        queryResult.setExecutionTime(System.currentTimeMillis() - startTime);
+        return queryResult;
+    }
+
+    /**
+     * 表格化查询：症状 -> 疾病 -> ICD
+     */
+    public List<SymptomDiagnosisRow> findSymptomDiagnosesRows(String symptomName) {
+        if (symptomName == null || symptomName.isBlank()) {
+            return List.of();
+        }
+        String cypher =
+                "MATCH (s:Symptom {name: $name})-[r:INDICATES]->(d:Disease) " +
                 "OPTIONAL MATCH (d)-[:CLASSIFIED_AS]->(i:ICD10) " +
                 "RETURN s.name AS symptom, d.name AS disease, " +
                 "       d.diseaseCode AS diseaseCode, " +
-                "       i.code AS icdCode, i.descriptionCn AS icdDescription";
+                "       i.code AS icdCode, i.descriptionCn AS icdDescription, " +
+                "       coalesce(r.weight, 1.0) AS weight " +
+                "ORDER BY weight DESC";
+        return runSymptomDiagnosisQuery(cypher, Map.of("name", symptomName.trim()));
+    }
 
-        Map<String, Object> params = Collections.singletonMap("name", symptomName);
-        return executeQuery(cypher, params);
+    /**
+     * 模糊症状匹配诊断
+     */
+    public List<SymptomDiagnosisRow> findSymptomDiagnosesFuzzy(String keyword, int limit) {
+        if (keyword == null || keyword.isBlank()) {
+            return List.of();
+        }
+        int safeLimit = Math.max(1, Math.min(limit, 50));
+        return runSymptomDiagnosisQuery(
+                SYMPTOM_DIAGNOSIS_FUZZY_CYPHER,
+                Map.of("keyword", keyword.trim(), "limit", safeLimit));
+    }
+
+    /**
+     * 症状名称联想
+     */
+    public List<String> suggestSymptomNames(String prefix, int limit) {
+        if (prefix == null || prefix.isBlank()) {
+            return List.of();
+        }
+        int safeLimit = Math.max(1, Math.min(limit, 50));
+        String cypher =
+                "MATCH (s:Symptom) WHERE s.name CONTAINS $prefix " +
+                "RETURN s.name AS name ORDER BY s.frequency DESC, s.name LIMIT $limit";
+        Map<String, Object> params = Map.of("prefix", prefix.trim(), "limit", safeLimit);
+        try (Session session = neo4jDriver.session()) {
+            Result result = session.run(cypher, params);
+            List<String> names = new ArrayList<>();
+            while (result.hasNext()) {
+                Record record = result.next();
+                if (!record.get("name").isNull()) {
+                    names.add(record.get("name").asString());
+                }
+            }
+            return names;
+        } catch (Exception e) {
+            log.error("症状联想查询失败: prefix={}", prefix, e);
+            throw new KnowledgeGraphException("SUGGEST_SYMPTOM_ERROR",
+                    "症状联想查询失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 按 ICD 编码反查
+     */
+    public Optional<SymptomDiagnosisRow> lookupByIcdCode(String code) {
+        if (code == null || code.isBlank()) {
+            return Optional.empty();
+        }
+        String cypher =
+                "MATCH (i:ICD10 {code: $code})<-[:CLASSIFIED_AS]-(d:Disease) " +
+                "OPTIONAL MATCH (s:Symptom)-[:INDICATES]->(d) " +
+                "RETURN coalesce(s.name, '') AS symptom, d.name AS disease, " +
+                "       d.diseaseCode AS diseaseCode, i.code AS icdCode, " +
+                "       i.descriptionCn AS icdDescription, 1.0 AS weight " +
+                "LIMIT 1";
+        List<SymptomDiagnosisRow> rows = runSymptomDiagnosisQuery(cypher, Map.of("code", code.trim()));
+        return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
+    }
+
+    /**
+     * 导出全部症状-ICD 关联（供 RDB 同步）
+     */
+    public List<SymptomDiagnosisRow> exportAllSymptomIcdRelations() {
+        String cypher =
+                "MATCH (s:Symptom)-[r:INDICATES]->(d:Disease) " +
+                "OPTIONAL MATCH (d)-[:CLASSIFIED_AS]->(i:ICD10) " +
+                "WHERE i.code IS NOT NULL " +
+                "RETURN s.name AS symptom, d.name AS disease, d.diseaseCode AS diseaseCode, " +
+                "       i.code AS icdCode, i.descriptionCn AS icdDescription, " +
+                "       coalesce(r.weight, 1.0) AS weight, coalesce(r.priority, 1) AS priority " +
+                "ORDER BY s.name, priority";
+        return runSymptomDiagnosisQueryWithPriority(cypher, Map.of());
+    }
+
+    public boolean isEmptyGraph() {
+        try (Session session = neo4jDriver.session()) {
+            Result result = session.run("MATCH (n) RETURN count(n) AS c");
+            if (result.hasNext()) {
+                return result.next().get("c").asLong() == 0;
+            }
+        }
+        return true;
+    }
+
+    private List<SymptomDiagnosisRow> runSymptomDiagnosisQuery(String cypher, Map<String, Object> params) {
+        try (Session session = neo4jDriver.session()) {
+            Result result = session.run(cypher, params);
+            List<SymptomDiagnosisRow> rows = new ArrayList<>();
+            while (result.hasNext()) {
+                rows.add(mapRecordToRow(result.next()));
+            }
+            return rows;
+        } catch (Exception e) {
+            log.error("症状诊断查询失败: {}", cypher, e);
+            throw new KnowledgeGraphException("SYMPTOM_DIAGNOSIS_ERROR",
+                    "症状诊断查询失败: " + e.getMessage(), e);
+        }
+    }
+
+    private List<SymptomDiagnosisRow> runSymptomDiagnosisQueryWithPriority(String cypher, Map<String, Object> params) {
+        try (Session session = neo4jDriver.session()) {
+            Result result = session.run(cypher, params);
+            List<SymptomDiagnosisRow> rows = new ArrayList<>();
+            while (result.hasNext()) {
+                Record record = result.next();
+                SymptomDiagnosisRow row = mapRecordToRow(record);
+                Value priorityVal = record.get("priority");
+                if (!priorityVal.isNull()) {
+                    row.setPriority(priorityVal.asInt());
+                }
+                rows.add(row);
+            }
+            return rows;
+        } catch (Exception e) {
+            log.error("图谱导出查询失败", e);
+            throw new KnowledgeGraphException("GRAPH_EXPORT_ERROR",
+                    "图谱导出查询失败: " + e.getMessage(), e);
+        }
+    }
+
+    private SymptomDiagnosisRow mapRecordToRow(Record record) {
+        return SymptomDiagnosisRow.builder()
+                .symptom(getString(record, "symptom"))
+                .disease(getString(record, "disease"))
+                .diseaseCode(getString(record, "diseaseCode"))
+                .icdCode(getString(record, "icdCode"))
+                .icdDescription(getString(record, "icdDescription"))
+                .weight(getDouble(record, "weight"))
+                .build();
+    }
+
+    private String getString(Record record, String key) {
+        Value value = record.get(key);
+        return value.isNull() ? null : value.asString();
+    }
+
+    private Double getDouble(Record record, String key) {
+        Value value = record.get(key);
+        if (value.isNull()) {
+            return null;
+        }
+        return value.asDouble();
+    }
+
+    private Map<String, Object> rowToMap(SymptomDiagnosisRow row) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("symptom", row.getSymptom());
+        map.put("disease", row.getDisease());
+        map.put("diseaseCode", row.getDiseaseCode());
+        map.put("icdCode", row.getIcdCode());
+        map.put("icdDescription", row.getIcdDescription());
+        map.put("weight", row.getWeight());
+        return map;
     }
 
     /**

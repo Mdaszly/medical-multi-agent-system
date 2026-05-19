@@ -4,6 +4,7 @@ import com.medical.service.AppointmentGuideService;
 import com.medical.service.DrugInteractionService;
 import com.medical.service.Icd10Service;
 import com.medical.service.MedicalKnowledgeService;
+import com.medical.service.kg.KnowledgeGraphFacade;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -21,9 +22,37 @@ public class MedicalTools {
     private final DrugInteractionService drugInteractionService;
     private final MedicalKnowledgeService medicalKnowledgeService;
     private final AppointmentGuideService appointmentGuideService;
+    private final KnowledgeGraphFacade knowledgeGraphFacade;
 
-    @Tool(description = "根据疾病名称查询 ICD-10 编码")
+    @Tool(description = "根据症状名称查询知识图谱中的可能疾病与 ICD-10 编码")
+    public String querySymptomDiagnosis(String symptomName) {
+        return knowledgeGraphFacade.querySymptomDiagnosisAsText(symptomName);
+    }
+
+    @Tool(description = "根据前缀联想标准症状名称")
+    public String suggestSymptoms(String prefix) {
+        return knowledgeGraphFacade.suggestSymptomsAsText(prefix);
+    }
+
+    @Tool(description = "根据 ICD-10 编码反查疾病信息（优先知识图谱）")
+    public String lookupIcd10ByCode(String code) {
+        String graph = knowledgeGraphFacade.lookupIcdAsText(code);
+        if (graph != null && !graph.startsWith("图谱中未找到")) {
+            return graph;
+        }
+        var vo = icd10Service.lookupByCode(code);
+        if (vo != null) {
+            return vo.getCode() + " - " + vo.getDescription();
+        }
+        return graph;
+    }
+
+    @Tool(description = "根据疾病名称查询 ICD-10 编码（优先知识图谱）")
     public String queryIcd10(String diseaseName) {
+        String graphText = knowledgeGraphFacade.querySymptomDiagnosisAsText(diseaseName);
+        if (graphText != null && graphText.contains("ICD:")) {
+            return graphText;
+        }
         return icd10Service.searchAsText(diseaseName);
     }
 

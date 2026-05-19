@@ -45,9 +45,15 @@ public class HealthConsultAgent extends AbstractStructuredConsultAgent {
     }
 
     @Override
-    protected void enrichContext(ClinicalState state) {
+    protected void enrichAgentSpecificContext(ClinicalState state) {
         String knowledge = knowledgeService.search(state.getRawInput());
-        state.getExtensions().put("toolContext", "健康知识库：\n" + knowledge);
+        appendToolContext(state, "健康知识库：\n" + knowledge);
         appendTrace(state, "Tool", "searchMedicalKnowledge", "检索健康科普知识");
+    }
+
+    private void appendToolContext(ClinicalState state, String text) {
+        Object existing = state.getExtensions().get("toolContext");
+        String merged = existing instanceof String s && !s.isBlank() ? s + "\n\n" + text : text;
+        state.getExtensions().put("toolContext", merged);
     }
 }

@@ -53,7 +53,7 @@ public class MedicationAgent extends AbstractStructuredConsultAgent {
     }
 
     @Override
-    protected void enrichContext(ClinicalState state) {
+    protected void enrichAgentSpecificContext(ClinicalState state) {
         List<String> newDrugs = extractDrugNames(state.getRawInput());
         List<String> current = extractCurrentMeds(state);
         String ddi = drugInteractionService.checkAsText(newDrugs, current);

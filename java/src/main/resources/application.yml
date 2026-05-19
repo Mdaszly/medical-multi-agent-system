@@ -62,6 +62,14 @@ sa-token:
 medical:
   ai:
     chat-type: enhanced # legacy: 仅临床 Pipeline; enhanced: 线上问诊 MedicalPipeline
+    graph:
+      enabled: true
+      pre-enrich: true
+      validate-icd: true
+      fuzzy-symptom-limit: 5
+      fallback-to-static-icd: true
+      bootstrap-on-startup: true
+      sync-to-rdb-on-startup: false
 
 app:
   llm:

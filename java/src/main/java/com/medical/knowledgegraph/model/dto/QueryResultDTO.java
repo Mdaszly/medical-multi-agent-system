@@ -58,6 +58,11 @@ public class QueryResultDTO {
     private List<PathResult> paths;
 
     /**
+     * 表格化标量结果（症状-疾病-ICD 等）
+     */
+    private List<Map<String, Object>> records;
+
+    /**
      * 分页信息
      */
     private Pagination pagination;

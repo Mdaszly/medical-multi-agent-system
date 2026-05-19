@@ -1,7 +1,9 @@
 package com.medical.model.vo;
 
 import com.medical.constant.ConsultConstant;
+import com.medical.knowledgegraph.model.dto.SymptomDiagnosisRow;
 import com.medical.model.ClinicalState;
+import com.medical.service.kg.KnowledgeEnrichmentService;
 import lombok.Data;
 
 import java.util.ArrayList;
@@ -25,6 +27,8 @@ public class ConsultVO {
     private String agentType;
     private List<AgentTraceVO> agentTrace = new ArrayList<>();
     private List<String> errors = new ArrayList<>();
+    private List<SymptomDiagnosisRowVO> graphEvidence = new ArrayList<>();
+    private String groundingStatus;
 
     @SuppressWarnings("unchecked")
     public static ConsultVO fromClinicalState(ClinicalState state, String sessionId) {
@@ -67,6 +71,19 @@ public class ConsultVO {
                     trace.setAction(stringVal(map.get("action")));
                     trace.setDetail(stringVal(map.get("detail")));
                     vo.getAgentTrace().add(trace);
+                }
+            }
+        }
+
+        Object grounding = state.getExtensions().get(KnowledgeEnrichmentService.EXT_GROUNDING_STATUS);
+        if (grounding != null) {
+            vo.setGroundingStatus(grounding.toString());
+        }
+
+        if (state.getExtensions().get(KnowledgeEnrichmentService.EXT_GRAPH_EVIDENCE) instanceof List<?> evidenceList) {
+            for (Object item : evidenceList) {
+                if (item instanceof SymptomDiagnosisRow row) {
+                    vo.getGraphEvidence().add(SymptomDiagnosisRowVO.from(row));
                 }
             }
         }

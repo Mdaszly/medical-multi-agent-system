@@ -10,6 +10,7 @@ import com.medical.model.ClinicalState;
 import com.medical.model.dto.consult.ConsultRequest;
 import com.medical.model.vo.ChatSessionVO;
 import com.medical.model.vo.ConsultVO;
+import com.medical.service.kg.IcdGroundingValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -35,6 +36,7 @@ public class ConsultOrchestrationService {
     private final MedicalAgentRegistry medicalAgentRegistry;
     private final LlmService llmService;
     private final ObjectMapper objectMapper;
+    private final IcdGroundingValidator icdGroundingValidator;
     private final ExecutorService streamExecutor = Executors.newCachedThreadPool();
 
     public ConsultVO consultSync(ConsultRequest request, Long userId) throws Exception {
@@ -47,6 +49,7 @@ public class ConsultOrchestrationService {
 
         ClinicalState state = medicalPipeline.invoke(
                 request.getQuestion(), request.getPatientContext(), sessionId, userId);
+        icdGroundingValidator.validate(state);
         ConsultVO vo = ConsultVO.fromClinicalState(state, sessionId);
         persistAssistantMessage(sessionId, userId, state, vo);
         return vo;
@@ -89,6 +92,7 @@ public class ConsultOrchestrationService {
                     .build();
             state.getExtensions().putAll(routed.getExtensions());
             agent.applyLlmResponse(state, buffer.toString());
+            icdGroundingValidator.validate(state);
 
             ConsultVO vo = ConsultVO.fromClinicalState(state, sessionId);
             persistAssistantMessage(sessionId, userId, state, vo);
@@ -120,6 +124,10 @@ public class ConsultOrchestrationService {
         Object history = routed.getExtensions().get("chatHistory");
         if (history instanceof String historyText && StringUtils.hasText(historyText)) {
             sb.append(historyText).append("\n");
+        }
+        Object toolContext = routed.getExtensions().get("toolContext");
+        if (toolContext instanceof String toolText && StringUtils.hasText(toolText)) {
+            sb.append("工具检索结果：\n").append(toolText).append("\n");
         }
         sb.append("患者描述：\n").append(request.getQuestion());
         if (request.getPatientContext() != null && !request.getPatientContext().isEmpty()) {

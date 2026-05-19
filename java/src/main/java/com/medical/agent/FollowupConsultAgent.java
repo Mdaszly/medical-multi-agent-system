@@ -25,8 +25,12 @@ public class FollowupConsultAgent extends AbstractStructuredConsultAgent {
           "next_questions": ["需追问"],
           "care_advice": ["随访建议"],
           "evidence_summary": "证据摘要",
-          "followup_plan": ["复查项目或复诊时间建议"]
+          "followup_plan": ["复查项目或复诊时间建议"],
+          "graph_hit": true,
+          "icd_references": [{"code":"I10","disease":"原发性高血压","source":"knowledge_graph"}]
         }
+        
+        规则：icd_references 的 code 必须来自工具检索结果；无命中时 graph_hit=false 且不得编造 ICD。
         """.formatted(String.join("、", ConsultConstant.DEPARTMENTS));
 
     private final Icd10Service icd10Service;
@@ -47,10 +51,10 @@ public class FollowupConsultAgent extends AbstractStructuredConsultAgent {
     }
 
     @Override
-    protected void enrichContext(ClinicalState state) {
+    protected void enrichAgentSpecificContext(ClinicalState state) {
         String icd = icd10Service.searchAsText(state.getRawInput());
-        appendToolContext(state, "ICD-10 参考：\n" + icd);
-        appendTrace(state, "Tool", "queryIcd10", "检索疾病编码参考");
+        appendToolContext(state, "ICD-10 静态参考（降级）：\n" + icd);
+        appendTrace(state, "Tool", "queryIcd10", "检索静态 ICD 参考");
     }
 
     private void appendToolContext(ClinicalState state, String text) {

@@ -47,9 +47,13 @@ public class ReportInterpretAgent extends AbstractStructuredConsultAgent {
     }
 
     @Override
-    protected void enrichContext(ClinicalState state) {
+    protected void enrichAgentSpecificContext(ClinicalState state) {
         String knowledge = knowledgeService.search(state.getRawInput());
-        state.getExtensions().put("toolContext", "医学知识库：\n" + knowledge);
+        Object existing = state.getExtensions().get("toolContext");
+        String merged = existing instanceof String s && !s.isBlank()
+                ? s + "\n\n医学知识库：\n" + knowledge
+                : "医学知识库：\n" + knowledge;
+        state.getExtensions().put("toolContext", merged);
         appendTrace(state, "Tool", "searchMedicalKnowledge", "检索报告相关知识点");
     }
 }

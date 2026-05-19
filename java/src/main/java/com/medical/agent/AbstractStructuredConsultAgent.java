@@ -6,7 +6,9 @@ import com.medical.agent.enums.MedicalAgentType;
 import com.medical.constant.ConsultConstant;
 import com.medical.model.ClinicalState;
 import com.medical.service.LlmService;
+import com.medical.service.kg.KnowledgeEnrichmentService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
@@ -18,6 +20,9 @@ import java.util.stream.Collectors;
 @Slf4j
 public abstract class AbstractStructuredConsultAgent extends BaseMedicalAgent {
 
+    @Autowired(required = false)
+    protected KnowledgeEnrichmentService knowledgeEnrichmentService;
+
     protected AbstractStructuredConsultAgent(LlmService llmService, ObjectMapper objectMapper) {
         super(llmService, objectMapper);
     }
@@ -27,7 +32,18 @@ public abstract class AbstractStructuredConsultAgent extends BaseMedicalAgent {
     protected abstract String systemPrompt();
 
     protected void enrichContext(ClinicalState state) {
-        // 子类可注入工具检索结果
+        enrichGraphContext(state);
+        enrichAgentSpecificContext(state);
+    }
+
+    protected void enrichGraphContext(ClinicalState state) {
+        if (knowledgeEnrichmentService != null) {
+            knowledgeEnrichmentService.enrich(state, agentType());
+        }
+    }
+
+    /** 子类追加场景化工具检索 */
+    protected void enrichAgentSpecificContext(ClinicalState state) {
     }
 
     /** 流式问诊路由后、调用 LLM 前执行工具增强 */

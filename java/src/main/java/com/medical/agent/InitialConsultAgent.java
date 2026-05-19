@@ -22,8 +22,12 @@ public class InitialConsultAgent extends AbstractStructuredConsultAgent {
           "red_flags": ["需立即就医的信号"],
           "next_questions": ["需补充追问的问题"],
           "care_advice": ["健康科普建议"],
-          "evidence_summary": "证据摘要"
+          "evidence_summary": "证据摘要",
+          "graph_hit": true,
+          "icd_references": [{"code":"G43.909","disease":"偏头痛","source":"knowledge_graph"}]
         }
+        
+        规则：icd_references 中的 code 必须来自「工具检索结果」中的 ICD 表；若无图谱命中则 graph_hit 为 false，icd_references 为空数组，禁止编造 ICD。
         """.formatted(String.join("、", ConsultConstant.DEPARTMENTS));
 
     public InitialConsultAgent(LlmService llmService, ObjectMapper objectMapper) {
