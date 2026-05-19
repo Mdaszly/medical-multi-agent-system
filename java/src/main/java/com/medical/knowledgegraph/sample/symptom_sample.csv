@@ -1,0 +1,11 @@
+id,name,code,category_code,category_name,description,body_part,pinyin,frequency,severity,urgent
+1,头痛,HEADACHE,PAIN,疼痛类,头部疼痛,头部,toutong,5,2,false
+2,胸痛,CHEST_PAIN,PAIN,疼痛类,胸部疼痛,胸部,xiongtong,4,3,true
+3,腹痛,ABDOMINAL_PAIN,PAIN,疼痛类,腹部疼痛,腹部,futong,5,2,false
+4,发热,FEVER,FEVER,发热类,体温升高,全身,fashao,5,2,false
+5,咳嗽,COUGH,RESPIRATORY,呼吸系统,咳嗽症状,呼吸道,kesou,5,1,false
+6,腹泻,DIARRHEA,DIGESTIVE,消化系统,大便稀薄,肠道,fuxie,4,2,false
+7,恶心,NAUSEA,DIGESTIVE,消化系统,恶心欲吐,胃肠道,exxin,4,1,false
+8,呕吐,VOMITING,DIGESTIVE,消化系统,呕吐,胃肠道,outu,4,2,false
+9,乏力,FATIGUE,general,全身症状,全身无力,全身,fali,4,1,false
+10,头晕,DIZZINESS,NEURO,神经系统,头晕目眩,头部,touyun,4,1,false

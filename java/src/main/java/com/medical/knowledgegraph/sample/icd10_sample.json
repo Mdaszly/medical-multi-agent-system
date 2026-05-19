@@ -1,0 +1,64 @@
+{
+  "data": [
+    {
+      "code": "J18.9",
+      "description_en": "Pneumonia, unspecified organism",
+      "description_cn": "肺炎，未特指致病微生物",
+      "chapter_code": "X",
+      "chapter_name": "呼吸系统疾病",
+      "section_code": "J15-J18",
+      "section_name": "肺炎",
+      "disease_class": "呼吸系统感染",
+      "medical_insurance": true,
+      "drg_code": "E61"
+    },
+    {
+      "code": "I10",
+      "description_en": "Essential (primary) hypertension",
+      "description_cn": "原发性高血压",
+      "chapter_code": "IX",
+      "chapter_name": "循环系统疾病",
+      "section_code": "I10-I15",
+      "section_name": "高血压疾病",
+      "disease_class": "心血管疾病",
+      "medical_insurance": true,
+      "drg_code": "F61"
+    },
+    {
+      "code": "E11.9",
+      "description_en": "Type 2 diabetes mellitus without complications",
+      "description_cn": "2型糖尿病，无并发症",
+      "chapter_code": "IV",
+      "chapter_name": "内分泌、营养和代谢疾病",
+      "section_code": "E10-E14",
+      "section_name": "糖尿病",
+      "disease_class": "代谢性疾病",
+      "medical_insurance": true,
+      "drg_code": "B82"
+    },
+    {
+      "code": "J45.909",
+      "description_en": "Unspecified asthma, uncomplicated",
+      "description_cn": "哮喘，未特指，无并发症",
+      "chapter_code": "X",
+      "chapter_name": "呼吸系统疾病",
+      "section_code": "J45-J46",
+      "section_name": "哮喘",
+      "disease_class": "呼吸系统疾病",
+      "medical_insurance": true,
+      "drg_code": "E43"
+    },
+    {
+      "code": "K29.5",
+      "description_en": "Chronic gastritis, unspecified",
+      "description_cn": "慢性胃炎，未特指",
+      "chapter_code": "XI",
+      "chapter_name": "消化系统疾病",
+      "section_code": "K25-K31",
+      "section_name": "胃和十二指肠疾病",
+      "disease_class": "消化系统疾病",
+      "medical_insurance": true,
+      "drg_code": "G41"
+    }
+  ]
+}

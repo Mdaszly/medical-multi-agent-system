@@ -61,7 +61,7 @@ sa-token:
 
 medical:
   ai:
-    chat-type: enhanced  # legacy: 仅临床 Pipeline; enhanced: 线上问诊 MedicalPipeline
+    chat-type: enhanced # legacy: 仅临床 Pipeline; enhanced: 线上问诊 MedicalPipeline
 
 app:
   llm:
@@ -77,3 +77,7 @@ app:
     uri: ${NEO4J_URI:bolt://localhost:7687}
     username: ${NEO4J_USER:neo4j}
     password: ${NEO4J_PASSWORD:neo4jpass}
+    max-connection-pool-size: 50
+    connection-timeout: 30000
+    max-transaction-retry-time: 30000
+    encrypted: false

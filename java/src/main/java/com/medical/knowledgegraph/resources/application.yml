@@ -1,0 +1,31 @@
+# 知识图谱模块配置
+
+# Neo4j数据库配置
+app:
+  neo4j:
+    uri: ${NEO4J_URI:bolt://localhost:7687}
+    username: ${NEO4J_USER:neo4j}
+    password: ${NEO4J_PASSWORD:neo4jpass}
+    max-connection-pool-size: 50
+    connection-timeout: 30000
+    max-transaction-retry-time: 30000
+    encrypted: false
+
+# Spring Boot配置
+spring:
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    default-property-inclusion: non_null
+
+# 日志配置
+logging:
+  level:
+    com.medical.knowledgegraph: DEBUG
+    org.neo4j.driver: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"

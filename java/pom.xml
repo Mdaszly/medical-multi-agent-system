@@ -25,6 +25,7 @@
         <lombok.version>1.18.30</lombok.version>
         <mybatis-plus.version>3.5.6</mybatis-plus.version>
         <springdoc.version>2.3.0</springdoc.version>
+        <neo4j-java-driver.version>5.24.0</neo4j-java-driver.version>
     </properties>
 
     <dependencyManagement>
@@ -128,6 +129,22 @@
             <version>${lombok.version}</version>
             <optional>true</optional>
         </dependency>
+
+        <!-- Neo4j Java Driver -->
+        <dependency>
+            <groupId>org.neo4j.driver</groupId>
+            <artifactId>neo4j-java-driver</artifactId>
+            <version>${neo4j-java-driver.version}</version>
+        </dependency>
+
+        
+
+        <!-- Apache Commons CSV for data import -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-csv</artifactId>
+            <version>1.10.0</version>
+        </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
@@ -142,9 +159,25 @@
 
     <repositories>
         <repository>
+            <id>central</id>
+            <name>Maven Central</name>
+            <url>https://repo1.maven.org/maven2</url>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+        <repository>
             <id>spring-milestones</id>
             <name>Spring Milestones</name>
             <url>https://repo.spring.io/milestone</url>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+        <repository>
+            <id>aliyunmaven</id>
+            <name>Aliyun Maven</name>
+            <url>https://maven.aliyun.com/repository/public</url>
             <snapshots>
                 <enabled>false</enabled>
             </snapshots>

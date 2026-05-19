@@ -1,0 +1,14 @@
+source_name,source_label,target_name,target_label,type,description,weight,priority
+头痛,Symptom,偏头痛,Disease,INDICATES,头痛可能指示偏头痛,0.8,1
+头痛,Symptom,高血压,Disease,INDICATES,头痛可能指示高血压,0.6,2
+发热,Symptom,肺炎,Disease,INDICATES,发热可能指示肺炎,0.7,1
+发热,Symptom,流感,Disease,INDICATES,发热可能指示流感,0.8,1
+咳嗽,Symptom,肺炎,Disease,INDICATES,咳嗽可能指示肺炎,0.7,1
+咳嗽,Symptom,哮喘,Disease,INDICATES,咳嗽可能指示哮喘,0.6,2
+胸痛,Symptom,心绞痛,Disease,INDICATES,胸痛可能指示心绞痛,0.9,1
+胸痛,Symptom,心肌梗死,Disease,INDICATES,胸痛可能指示心肌梗死,0.7,2
+腹痛,Symptom,胃炎,Disease,INDICATES,腹痛可能指示胃炎,0.6,1
+腹痛,Symptom,阑尾炎,Disease,INDICATES,腹痛可能指示阑尾炎,0.5,2
+偏头痛,Disease,J90.9,ICD10,CLASSIFIED_AS,偏头痛ICD分类,1.0,1
+高血压,Disease,I10,ICD10,CLASSIFIED_AS,高血压ICD分类,1.0,1
+肺炎,Disease,J18.9,ICD10,CLASSIFIED_AS,肺炎ICD分类,1.0,1

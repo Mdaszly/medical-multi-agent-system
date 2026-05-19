@@ -32,7 +32,7 @@ services:
       retries: 5
 
   neo4j:
-    image: docker.1ms.run/library/neo4j:5-community
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/neo4j:latest
     environment:
       NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-neo4jpass}
     ports:

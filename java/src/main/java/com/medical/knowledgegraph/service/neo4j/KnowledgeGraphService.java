@@ -1,0 +1,509 @@
+package com.medical.knowledgegraph.service.neo4j;
+
+import com.medical.knowledgegraph.exception.KnowledgeGraphException;
+import com.medical.knowledgegraph.model.dto.QueryResultDTO;
+import com.medical.knowledgegraph.model.entity.*;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.neo4j.driver.Driver;
+import org.neo4j.driver.Record;
+import org.neo4j.driver.Result;
+import org.neo4j.driver.Session;
+import org.neo4j.driver.Transaction;
+import org.neo4j.driver.Value;
+import org.neo4j.driver.Values;
+import org.neo4j.driver.types.Node;
+import org.neo4j.driver.types.Relationship;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.stream.Collectors;
+
+/**
+ * Neo4j知识图谱核心服务
+ */
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class KnowledgeGraphService {
+
+    private final Driver neo4jDriver;
+
+    // ==================== 节点操作 ====================
+
+    /**
+     * 创建节点
+     */
+    public void createNode(BaseNode node) {
+        String cypher = String.format(
+                "CREATE (n:%s $props) RETURN n",
+                node.getLabel()
+        );
+        
+        Map<String, Object> params = new HashMap<>();
+        params.put("props", node.toNeo4jProperties());
+        
+        try (Session session = neo4jDriver.session()) {
+            session.run(cypher, Values.value(params));
+            log.debug("创建节点成功: label={}, name={}", node.getLabel(), node.getName());
+        } catch (Exception e) {
+            log.error("创建节点失败: label={}, name={}", node.getLabel(), node.getName(), e);
+            throw new KnowledgeGraphException("CREATE_NODE_ERROR", 
+                    "创建节点失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 批量创建节点
+     */
+    public void createNodes(List<? extends BaseNode> nodes) {
+        if (nodes == null || nodes.isEmpty()) {
+            return;
+        }
+
+        String label = nodes.get(0).getLabel();
+        String cypher = String.format(
+                "UNWIND $batch AS row " +
+                "CREATE (n:%s) " +
+                "SET n = row.props " +
+                "RETURN count(n) AS createdCount",
+                label
+        );
+
+        List<Map<String, Object>> batch = nodes.stream()
+                .map(node -> {
+                    Map<String, Object> item = new HashMap<>();
+                    item.put("props", node.toNeo4jProperties());
+                    return item;
+                })
+                .collect(Collectors.toList());
+
+        try (Session session = neo4jDriver.session()) {
+            Map<String, Object> params = Collections.singletonMap("batch", batch);
+            Result result = session.run(cypher, Values.value(params));
+            long count = result.single().get("createdCount").asLong();
+            log.info("批量创建节点完成: label={}, count={}", label, count);
+        } catch (Exception e) {
+            log.error("批量创建节点失败: label={}", label, e);
+            throw new KnowledgeGraphException("BATCH_CREATE_NODES_ERROR", 
+                    "批量创建节点失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 创建或更新节点 (MERGE)
+     */
+    public void upsertNode(BaseNode node, String uniqueProperty) {
+        String cypher = String.format(
+                "MERGE (n:%s {%s: $props.%s}) " +
+                "ON CREATE SET n = $props " +
+                "ON MATCH SET n += $props " +
+                "RETURN n",
+                node.getLabel(),
+                uniqueProperty,
+                uniqueProperty
+        );
+
+        Map<String, Object> props = node.toNeo4jProperties();
+        Map<String, Object> params = new HashMap<>();
+        params.put("props", props);
+
+        try (Session session = neo4jDriver.session()) {
+            session.executeWrite(tx -> {
+                tx.run(cypher, params);
+                return null;
+            });
+            log.debug("Upsert节点成功: label={}, name={}", node.getLabel(), node.getName());
+        } catch (Exception e) {
+            log.error("Upsert节点失败: label={}, name={}", node.getLabel(), node.getName(), e);
+            throw new KnowledgeGraphException("UPSERT_NODE_ERROR", 
+                    "Upsert节点失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 删除节点
+     */
+    public void deleteNode(String label, String property, Object value) {
+        String cypher = String.format(
+                "MATCH (n:%s {%s: $value}) DETACH DELETE n",
+                label,
+                property
+        );
+
+        Map<String, Object> params = Collections.singletonMap("value", value);
+
+        try (Session session = neo4jDriver.session()) {
+            session.executeWrite(tx -> {
+                tx.run(cypher, params);
+                return null;
+            });
+            log.debug("删除节点成功: label={}, {}={}", label, property, value);
+        } catch (Exception e) {
+            log.error("删除节点失败: label={}, {}={}", label, property, value, e);
+            throw new KnowledgeGraphException("DELETE_NODE_ERROR", 
+                    "删除节点失败: " + e.getMessage(), e);
+        }
+    }
+
+    // ==================== 关系操作 ====================
+
+    /**
+     * 创建关系
+     */
+    public void createRelationship(KnowledgeRelation relation) {
+        String cypher = String.format(
+                "MATCH (source:%s {name: $sourceName}) " +
+                "MATCH (target:%s {name: $targetName}) " +
+                "CREATE (source)-[r:%s]->(target) " +
+                "SET r = $properties " +
+                "RETURN r",
+                relation.getSourceLabel(),
+                relation.getTargetLabel(),
+                relation.getType()
+        );
+
+        Map<String, Object> params = new HashMap<>();
+        params.put("sourceName", relation.getSourceName());
+        params.put("targetName", relation.getTargetName());
+        params.put("properties", buildRelationProperties(relation));
+
+        try (Session session = neo4jDriver.session()) {
+            session.executeWrite(tx -> {
+                tx.run(cypher, params);
+                return null;
+            });
+            log.debug("创建关系成功: {} -> [{}] -> {}", 
+                    relation.getSourceName(), relation.getType(), relation.getTargetName());
+        } catch (Exception e) {
+            log.warn("创建关系失败，可能节点不存在: {} -> [{}] -> {}", 
+                    relation.getSourceName(), relation.getType(), relation.getTargetName());
+        }
+    }
+
+    /**
+     * 批量创建关系
+     */
+    public void createRelationships(List<KnowledgeRelation> relations) {
+        if (relations == null || relations.isEmpty()) {
+            return;
+        }
+
+        try (Session session = neo4jDriver.session()) {
+            session.executeWrite(tx -> {
+                for (KnowledgeRelation relation : relations) {
+                    String cypher = String.format(
+                            "MATCH (source:%s {name: $sourceName}) " +
+                            "MATCH (target:%s {name: $targetName}) " +
+                            "CREATE (source)-[r:%s]->(target) " +
+                            "SET r = $props",
+                            relation.getSourceLabel() != null ? relation.getSourceLabel() : "UNKNOWN",
+                            relation.getTargetLabel() != null ? relation.getTargetLabel() : "UNKNOWN",
+                            relation.getType()
+                    );
+
+                    Map<String, Object> params = new HashMap<>();
+                    params.put("sourceName", relation.getSourceName());
+                    params.put("targetName", relation.getTargetName());
+                    params.put("props", buildRelationProperties(relation));
+
+                    tx.run(cypher, params);
+                }
+                return null;
+            });
+            log.info("批量创建关系完成: count={}", relations.size());
+        } catch (Exception e) {
+            log.error("批量创建关系失败", e);
+            throw new KnowledgeGraphException("BATCH_CREATE_RELATIONS_ERROR", 
+                    "批量创建关系失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 删除关系
+     */
+    public void deleteRelationship(String sourceName, String targetName, String relationType) {
+        String cypher = String.format(
+                "MATCH (source)-[r:%s]->(target) " +
+                "WHERE source.name = $sourceName AND target.name = $targetName " +
+                "DELETE r",
+                relationType
+        );
+
+        Map<String, Object> params = new HashMap<>();
+        params.put("sourceName", sourceName);
+        params.put("targetName", targetName);
+
+        try (Session session = neo4jDriver.session()) {
+            session.executeWrite(tx -> {
+                tx.run(cypher, params);
+                return null;
+            });
+            log.debug("删除关系成功: {} -> [{}] -> {}", sourceName, relationType, targetName);
+        } catch (Exception e) {
+            log.error("删除关系失败", e);
+            throw new KnowledgeGraphException("DELETE_RELATION_ERROR", 
+                    "删除关系失败: " + e.getMessage(), e);
+        }
+    }
+
+    // ==================== 查询操作 ====================
+
+    /**
+     * 执行Cypher查询
+     */
+    public QueryResultDTO executeQuery(String cypher, Map<String, Object> params) {
+        long startTime = System.currentTimeMillis();
+        
+        try (Session session = neo4jDriver.session()) {
+            Result result = session.run(cypher, Values.value(params));
+            
+            QueryResultDTO queryResult = QueryResultDTO.builder()
+                    .query(cypher)
+                    .queryType("CYPHER")
+                    .executionTime(System.currentTimeMillis() - startTime)
+                    .nodes(new ArrayList<>())
+                    .relations(new ArrayList<>())
+                    .paths(new ArrayList<>())
+                    .build();
+            
+            while (result.hasNext()) {
+                Record record = result.next();
+                processRecord(record, queryResult);
+            }
+            
+            queryResult.setTotalCount(queryResult.getNodes().size());
+            return queryResult;
+            
+        } catch (Exception e) {
+            log.error("执行Cypher查询失败: {}", cypher, e);
+            throw new KnowledgeGraphException("QUERY_ERROR", 
+                    "执行查询失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 根据名称查询节点
+     */
+    public QueryResultDTO findNodeByName(String label, String name) {
+        String cypher = String.format(
+                "MATCH (n:%s) " +
+                "WHERE n.name CONTAINS $name " +
+                "RETURN n",
+                label
+        );
+
+        Map<String, Object> params = Collections.singletonMap("name", name);
+        return executeQuery(cypher, params);
+    }
+
+    /**
+     * 查询节点的关联关系
+     */
+    public QueryResultDTO findNodeRelations(String label, String name, 
+                                             String relationType, int depth) {
+        String cypher = String.format(
+                "MATCH path = (source:%s {name: $name})-[*1..%d]-(target) " +
+                "RETURN source, relationships(path) as rels, target",
+                label,
+                depth
+        );
+
+        Map<String, Object> params = Collections.singletonMap("name", name);
+        return executeQuery(cypher, params);
+    }
+
+    /**
+     * 查找两个节点之间的所有路径
+     */
+    public QueryResultDTO findPaths(String sourceLabel, String sourceName,
+                                     String targetLabel, String targetName,
+                                     int maxDepth) {
+        String cypher = String.format(
+                "MATCH path = (source:%s {name: $sourceName})" +
+                "-[*1.." + maxDepth + "]->" +
+                "(target:%s {name: $targetName}) " +
+                "RETURN path",
+                sourceLabel,
+                targetLabel
+        );
+
+        Map<String, Object> params = new HashMap<>();
+        params.put("sourceName", sourceName);
+        params.put("targetName", targetName);
+
+        return executeQuery(cypher, params);
+    }
+
+    /**
+     * 查询症状关联的疾病和ICD编码
+     */
+    public QueryResultDTO findSymptomDiagnoses(String symptomName) {
+        String cypher = 
+                "MATCH (s:Symptom {name: $name})-[:INDICATES]->(d:Disease) " +
+                "OPTIONAL MATCH (d)-[:CLASSIFIED_AS]->(i:ICD10) " +
+                "RETURN s.name AS symptom, d.name AS disease, " +
+                "       d.diseaseCode AS diseaseCode, " +
+                "       i.code AS icdCode, i.descriptionCn AS icdDescription";
+
+        Map<String, Object> params = Collections.singletonMap("name", symptomName);
+        return executeQuery(cypher, params);
+    }
+
+    /**
+     * 查询药品的适应症
+     */
+    public QueryResultDTO findDrugIndications(String drugName) {
+        String cypher = 
+                "MATCH (d:Drug {name: $name})-[:TREATS]->(disease:Disease) " +
+                "RETURN d.name AS drug, disease.name AS disease, " +
+                "       disease.icd10Code AS icdCode";
+
+        Map<String, Object> params = Collections.singletonMap("name", drugName);
+        return executeQuery(cypher, params);
+    }
+
+    /**
+     * 获取统计信息
+     */
+    public Map<String, Long> getStatistics() {
+        Map<String, Long> stats = new HashMap<>();
+        
+        String[] labels = {"Symptom", "Disease", "Drug", "DrugEffect", "ICD10"};
+        
+        try (Session session = neo4jDriver.session()) {
+            for (String label : labels) {
+                String cypher = String.format("MATCH (n:%s) RETURN count(n) AS count", label);
+                Result result = session.run(cypher);
+                if (result.hasNext()) {
+                    stats.put(label, result.next().get("count").asLong());
+                }
+            }
+            
+            // 统计关系数量
+            String relCypher = "MATCH ()-[r]->() RETURN count(r) AS count";
+            Result relResult = session.run(relCypher);
+            if (relResult.hasNext()) {
+                stats.put("Relationships", relResult.next().get("count").asLong());
+            }
+        }
+        
+        return stats;
+    }
+
+    // ==================== 辅助方法 ====================
+
+    private void processRecord(org.neo4j.driver.Record record, QueryResultDTO result) {
+        for (String key : record.keys()) {
+            Value value = record.get(key);
+            
+            if (value.type().name().startsWith("NODE")) {
+                QueryResultDTO.NodeResult node = extractNode(value.asNode());
+                result.getNodes().add(node);
+            } else if (value.type().name().startsWith("RELATIONSHIP")) {
+                QueryResultDTO.RelationResult rel = extractRelation(value.asRelationship());
+                result.getRelations().add(rel);
+            }
+        }
+    }
+
+    private QueryResultDTO.NodeResult extractNode(Node node) {
+        Map<String, Object> props = new HashMap<>();
+        node.keys().forEach(key -> props.put(key, node.get(key).asObject()));
+        
+        return QueryResultDTO.NodeResult.builder()
+                .id(String.valueOf(node.id()))
+                .label(node.labels().iterator().next())
+                .name(node.get("name").asString())
+                .properties(props)
+                .build();
+    }
+
+    private QueryResultDTO.RelationResult extractRelation(Relationship rel) {
+        Map<String, Object> props = new HashMap<>();
+        rel.keys().forEach(key -> props.put(key, rel.get(key).asObject()));
+        
+        return QueryResultDTO.RelationResult.builder()
+                .sourceId(String.valueOf(rel.startNodeId()))
+                .targetId(String.valueOf(rel.endNodeId()))
+                .type(rel.type())
+                .properties(props)
+                .build();
+    }
+
+    private Map<String, Object> buildRelationProperties(KnowledgeRelation relation) {
+        Map<String, Object> props = new HashMap<>();
+        if (relation.getDescription() != null) {
+            props.put("description", relation.getDescription());
+        }
+        if (relation.getWeight() != null) {
+            props.put("weight", relation.getWeight());
+        }
+        if (relation.getPriority() != null) {
+            props.put("priority", relation.getPriority());
+        }
+        props.put("createTime", LocalDateTime.now().toString());
+        return props;
+    }
+
+    private String repeat(String str, int count) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < count; i++) {
+            sb.append(str);
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 清空所有数据（谨慎使用）
+     */
+    public void clearAll() {
+        try (Session session = neo4jDriver.session()) {
+            session.executeWrite(tx -> {
+                tx.run("MATCH (n) DETACH DELETE n");
+                return null;
+            });
+            log.warn("已清空所有节点和关系");
+        }
+    }
+
+    /**
+     * 创建索引
+     */
+    public void createIndex(String label, String property) {
+        String cypher = String.format(
+                "CREATE INDEX IF NOT EXISTS FOR (n:%s) ON (n.%s)",
+                label,
+                property
+        );
+        
+        try (Session session = neo4jDriver.session()) {
+            session.executeWrite(tx -> {
+                tx.run(cypher);
+                return null;
+            });
+            log.info("创建索引: label={}, property={}", label, property);
+        } catch (Exception e) {
+            log.warn("创建索引失败，可能已存在: label={}, property={}", label, property);
+        }
+    }
+
+    /**
+     * 创建约束
+     */
+    public void createConstraint(String label, String property) {
+        String cypher = String.format(
+                "CREATE CONSTRAINT FOR (n:%s) REQUIRE n.%s IS UNIQUE",
+                label,
+                property
+        );
+        
+        try (Session session = neo4jDriver.session()) {
+            session.run(cypher);
+            log.info("创建约束: label={}, property={}", label, property);
+        } catch (Exception e) {
+            log.warn("创建约束失败，可能已存在: label={}, property={}", label, property);
+        }
+    }
+}
