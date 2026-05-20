@@ -68,18 +68,18 @@ const handleLogin = async () => {
   try {
     const response = await post('/api/auth/login', {
       userAccount: loginForm.userAccount,
-      password: loginForm.userPassword,
-      userRole: loginForm.userRole
+      password: loginForm.userPassword
     })
 
     if (response.data) {
+      const userRole = response.data.userRole || loginForm.userRole
       authStore.setUserInfo({
         ...response.data,
-        userRole: loginForm.userRole
+        userRole
       })
 
       ElMessage.success('登录成功！')
-      const roleHome = getHomeRoute(loginForm.userRole)
+      const roleHome = getHomeRoute(userRole)
       router.push(roleHome)
     }
   } catch (error) {

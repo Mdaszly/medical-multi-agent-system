@@ -86,6 +86,11 @@ public class KnowledgeRelation {
     private Integer priority;
 
     /**
+     * 是否紧急
+     */
+    private Boolean urgent;
+
+    /**
      * 创建时间
      */
     private LocalDateTime createTime;

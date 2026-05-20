@@ -23,7 +23,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - ../../persistence-data/postgres:/var/lib/postgresql/data
       - ../docker/init-db.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -39,18 +39,16 @@ services:
       - "7474:7474"
       - "7687:7687"
     volumes:
-      - neo4jdata:/data
+      - ../../persistence-data/neo4j:/data
 
   redis:
     image: docker.1ms.run/library/redis:7-alpine
     ports:
       - "6379:6379"
+    volumes:
+      - ../../persistence-data/redis:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
-
-volumes:
-  pgdata:
-  neo4jdata:

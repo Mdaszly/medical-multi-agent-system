@@ -59,6 +59,12 @@ declare namespace API {
     createTime?: string;
   };
 
+  type AgentTraceVO = {
+    agent?: string;
+    action?: string;
+    detail?: string;
+  };
+
   type AnalyzeRequest = {
     patientDescription: string;
   };
@@ -209,6 +215,30 @@ declare namespace API {
     message?: string;
   };
 
+  type BaseResponseChatMessageVO = {
+    code?: number;
+    data?: ChatMessageVO;
+    message?: string;
+  };
+
+  type BaseResponseChatSessionHistoryVO = {
+    code?: number;
+    data?: ChatSessionHistoryVO;
+    message?: string;
+  };
+
+  type BaseResponseChatSessionVO = {
+    code?: number;
+    data?: ChatSessionVO;
+    message?: string;
+  };
+
+  type BaseResponseConsultVO = {
+    code?: number;
+    data?: ConsultVO;
+    message?: string;
+  };
+
   type BaseResponseDoctorVO = {
     code?: number;
     data?: DoctorVO;
@@ -224,6 +254,12 @@ declare namespace API {
   type BaseResponseFeeItemVO = {
     code?: number;
     data?: FeeItemVO;
+    message?: string;
+  };
+
+  type BaseResponseHealthProfileVO = {
+    code?: number;
+    data?: HealthProfileVO;
     message?: string;
   };
 
@@ -284,6 +320,12 @@ declare namespace API {
   type BaseResponseListBillVO = {
     code?: number;
     data?: BillVO[];
+    message?: string;
+  };
+
+  type BaseResponseListChatMessageVO = {
+    code?: number;
+    data?: ChatMessageVO[];
     message?: string;
   };
 
@@ -413,6 +455,51 @@ declare namespace API {
     newPassword?: string;
   };
 
+  type ChatMessageSaveRequest = {
+    sessionId?: string;
+    role?: string;
+    content?: string;
+    agentType?: string;
+    riskLevel?: string;
+    metadataJson?: string;
+  };
+
+  type ChatMessageVO = {
+    id?: number;
+    sessionId?: string;
+    role?: string;
+    content?: string;
+    agentType?: string;
+    riskLevel?: string;
+    metadataJson?: string;
+    createTime?: string;
+  };
+
+  type ChatSessionCreateRequest = {
+    scene?: string;
+    title?: string;
+  };
+
+  type ChatSessionHistoryVO = {
+    today?: ChatSessionVO[];
+    last30Days?: ChatSessionVO[];
+    lastYear?: ChatSessionVO[];
+    olderThanYear?: ChatSessionVO[];
+  };
+
+  type ChatSessionTitleUpdateRequest = {
+    sessionId?: string;
+    title?: string;
+  };
+
+  type ChatSessionVO = {
+    sessionId?: string;
+    title?: string;
+    scene?: string;
+    createTime?: string;
+    updateTime?: string;
+  };
+
   type checkInAppointmentParams = {
     /** 预约ID */
     appointmentId: number;
@@ -437,6 +524,43 @@ declare namespace API {
     auditResult?: Record<string, any>;
     currentAgent?: string;
     errors?: string[];
+    extensions?: Record<string, any>;
+  };
+
+  type ConsultRequest = {
+    sessionId?: string;
+    scene?: string;
+    question: string;
+    patientContext?: Record<string, any>;
+  };
+
+  type ConsultVO = {
+    sessionId?: string;
+    answer?: string;
+    riskLevel?: string;
+    recommendedDepartment?: string;
+    conclusion?: string;
+    reasoning?: string;
+    redFlags?: string[];
+    nextQuestions?: string[];
+    careAdvice?: string[];
+    evidenceSummary?: string;
+    disclaimer?: string;
+    agentType?: string;
+    agentTrace?: AgentTraceVO[];
+    errors?: string[];
+    graphEvidence?: SymptomDiagnosisRowVO[];
+    groundingStatus?: string;
+  };
+
+  type createConstraintParams = {
+    label: string;
+    property: string;
+  };
+
+  type createIndexParams = {
+    label: string;
+    property: string;
   };
 
   type deleteDrugParams = {
@@ -447,6 +571,10 @@ declare namespace API {
   type deleteScheduleParams = {
     /** 排班ID */
     id: number;
+  };
+
+  type deleteSessionParams = {
+    sessionId: string;
   };
 
   type deleteSlotParams = {
@@ -656,6 +784,39 @@ declare namespace API {
     updateTime?: string;
   };
 
+  type findDiagnosesParams = {
+    symptomName: string;
+  };
+
+  type findDrugIndicationsParams = {
+    drugName: string;
+  };
+
+  type findNodeByNameParams = {
+    label: string;
+    name: string;
+  };
+
+  type findNodeRelationsByQueryParams = {
+    label: string;
+    name: string;
+    depth?: number;
+  };
+
+  type findNodeRelationsParams = {
+    label: string;
+    name: string;
+    depth?: number;
+  };
+
+  type findPathsParams = {
+    sourceLabel: string;
+    sourceName: string;
+    targetLabel: string;
+    targetName: string;
+    maxDepth?: number;
+  };
+
   type generateBillByAppointmentParams = {
     /** 预约ID */
     appointmentId: number;
@@ -725,6 +886,15 @@ declare namespace API {
     id: number;
   };
 
+  type getHealthProfileParams = {
+    /** 用户ID */
+    userId?: number;
+  };
+
+  type getImportTaskStatusParams = {
+    taskId: string;
+  };
+
   type getPaymentByIdParams = {
     /** 支付ID */
     id: number;
@@ -768,6 +938,76 @@ declare namespace API {
   type getUnsettledAmountParams = {
     /** 用户ID */
     userId: number;
+  };
+
+  type HealthProfile = {
+    id?: number;
+    userId?: number;
+    userName?: string;
+    chronicDiseases?: string;
+    allergyHistory?: string;
+    medicationHistory?: string;
+    familyHistory?: string;
+    surgicalHistory?: string;
+    vaccinationHistory?: string;
+    physicalExam?: string;
+    height?: number;
+    weight?: number;
+    bloodType?: string;
+    bloodPressure?: string;
+    remark?: string;
+    createTime?: string;
+    updateTime?: string;
+  };
+
+  type HealthProfileVO = {
+    id?: number;
+    userId?: number;
+    userName?: string;
+    chronicDiseases?: string;
+    allergyHistory?: string;
+    medicationHistory?: string;
+    familyHistory?: string;
+    surgicalHistory?: string;
+    vaccinationHistory?: string;
+    physicalExam?: string;
+    height?: number;
+    weight?: number;
+    bloodType?: string;
+    bloodPressure?: string;
+    remark?: string;
+    createTime?: string;
+    updateTime?: string;
+  };
+
+  type ImportConfig = {
+    skipHeader?: boolean;
+    delimiter?: string;
+    fieldMapping?: Record<string, any>;
+    encoding?: string;
+    batchSize?: number;
+  };
+
+  type importFileParams = {
+    entityType: string;
+    skipHeader?: boolean;
+    delimiter?: string;
+  };
+
+  type ImportTaskDTO = {
+    taskId?: string;
+    filePath?: string;
+    fileType?: string;
+    entityType?: string;
+    totalRecords?: number;
+    processedRecords?: number;
+    successCount?: number;
+    failureCount?: number;
+    status?: string;
+    startTime?: string;
+    endTime?: string;
+    errors?: string[];
+    config?: ImportConfig;
   };
 
   type IPageAdminVO = {
@@ -889,6 +1129,11 @@ declare namespace API {
     department: string;
   };
 
+  type listMessagesParams = {
+    sessionId: string;
+    limit?: number;
+  };
+
   type listOnDutyDoctorsParams = {
     /** 排班日期 */
     scheduleDate: string;
@@ -915,6 +1160,27 @@ declare namespace API {
     startDate?: string;
     /** 结束日期 */
     endDate?: string;
+  };
+
+  type NodeResult = {
+    id?: string;
+    label?: string;
+    name?: string;
+    properties?: Record<string, any>;
+  };
+
+  type Pagination = {
+    page?: number;
+    pageSize?: number;
+    totalPages?: number;
+    hasNext?: boolean;
+    hasPrevious?: boolean;
+  };
+
+  type PathResult = {
+    nodes?: NodeResult[];
+    relationships?: RelationResult[];
+    weight?: number;
   };
 
   type PaymentRequest = {
@@ -1029,10 +1295,30 @@ declare namespace API {
     effectiveDate?: string;
   };
 
+  type QueryResultDTO = {
+    queryId?: string;
+    query?: string;
+    queryType?: string;
+    executionTime?: number;
+    totalCount?: number;
+    nodes?: NodeResult[];
+    relations?: RelationResult[];
+    paths?: PathResult[];
+    records?: Record<string, any>[];
+    pagination?: Pagination;
+  };
+
   type RefundRequest = {
     paymentId?: number;
     refundAmount?: number;
     reason?: string;
+  };
+
+  type RelationResult = {
+    sourceId?: string;
+    targetId?: string;
+    type?: string;
+    properties?: Record<string, any>;
   };
 
   type ResetPasswordRequest = {
@@ -1116,6 +1402,24 @@ declare namespace API {
   type SlotBatchAddRequest = {
     scheduleId?: number;
     slots?: SlotAddRequest[];
+  };
+
+  type SseEmitter = {
+    timeout?: number;
+  };
+
+  type suggestSymptomsParams = {
+    prefix: string;
+    limit?: number;
+  };
+
+  type SymptomDiagnosisRowVO = {
+    symptom?: string;
+    disease?: string;
+    diseaseCode?: string;
+    icdCode?: string;
+    icdDescription?: string;
+    weight?: number;
   };
 
   type updateAppointmentStatusParams = {
@@ -1203,145 +1507,5 @@ declare namespace API {
     age?: number;
     /** 注册时间 */
     createTime?: string;
-  };
-
-  type PatientContext = {
-    /** 患者年龄 */
-    age?: number;
-    /** 患者性别 */
-    gender?: string;
-    /** 既往病史 */
-    medicalHistory?: string;
-    /** 过敏史 */
-    allergies?: string;
-    /** 当前用药 */
-    currentMedications?: string;
-    /** 症状描述 */
-    symptom?: string;
-  };
-
-  type ConsultRequest = {
-    /** 问诊问题 */
-    question: string;
-    /** 会话ID（可选，用于连续对话） */
-    sessionId?: string;
-    /** 患者上下文信息（可选） */
-    patientContext?: PatientContext;
-  };
-
-  type ConsultVO = {
-    /** AI回答内容 */
-    answer?: string;
-    /** 风险等级 */
-    riskLevel?: string;
-    /** 推荐科室 */
-    department?: string;
-    /** 建议列表 */
-    suggestions?: string[];
-    /** 证据列表 */
-    evidence?: Record<string, any>[];
-    /** Agent追踪信息 */
-    agentTrace?: Record<string, any>[];
-    /** 免责声明 */
-    disclaimer?: string;
-  };
-
-  type ChatSessionVO = {
-    /** 会话ID */
-    sessionId?: string;
-    /** 会话标题 */
-    title?: string;
-    /** 创建时间 */
-    createTime?: string;
-    /** 更新时间 */
-    updateTime?: string;
-  };
-
-  type ChatSessionHistoryVO = {
-    /** 今日会话 */
-    todaySessions?: ChatSessionVO[];
-    /** 近期会话（7天内） */
-    recentSessions?: ChatSessionVO[];
-    /** 更早的会话 */
-    olderSessions?: ChatSessionVO[];
-  };
-
-  type ChatMessageVO = {
-    /** 消息ID */
-    id?: string;
-    /** 会话ID */
-    sessionId?: string;
-    /** 消息角色：user/assistant */
-    role?: string;
-    /** 消息内容 */
-    content?: string;
-    /** Agent类型（assistant消息时可用） */
-    agentType?: string;
-    /** 风险等级（assistant消息时可用） */
-    riskLevel?: string;
-    /** 创建时间 */
-    createTime?: string;
-  };
-
-  type CreateSessionRequest = {
-    /** 场景类型（可选） */
-    scene?: string;
-    /** 会话标题（可选） */
-    title?: string;
-  };
-
-  type SessionIdRequest = {
-    /** 会话ID */
-    sessionId: string;
-  };
-
-  type listMessagesParams = {
-    /** 会话ID */
-    sessionId: string;
-    /** 消息数量限制（可选，默认20） */
-    limit?: number;
-  };
-
-  type ChatStreamResponse = {
-    /** 流式响应类型：content/error/done */
-    type?: string;
-    /** 内容片段 */
-    content?: string;
-    /** Agent类型 */
-    agentType?: string;
-    /** 风险等级 */
-    riskLevel?: string;
-    /** 完成标志 */
-    done?: boolean;
-    /** 错误信息 */
-    error?: string;
-    /** 会话ID */
-    sessionId?: string;
-    /** 完整响应数据 */
-    data?: ConsultVO;
-  };
-
-  type BaseResponseConsultVO = {
-    code?: number;
-    data?: ConsultVO;
-    message?: string;
-  };
-
-  type BaseResponseChatSessionVO = {
-    code?: number;
-    data?: ChatSessionVO;
-    message?: string;
-  };
-
-  type BaseResponseChatSessionHistoryVO = {
-    code?: number;
-    data?: ChatSessionHistoryVO;
-    message?: string;
-  };
-
-  type BaseResponseListChatMessageVO = {
-    code?: number;
-    data?: ChatMessageVO[];
-    message?: string;
   };
 }

@@ -298,17 +298,17 @@ public class DataImportService {
 
     private Symptom mapToSymptom(Map<String, String> row) {
         return Symptom.builder()
-                .id(row.get("id"))
-                .name(row.get("name"))
-                .code(row.get("code"))
-                .categoryCode(row.get("category_code"))
-                .categoryName(row.get("category_name"))
-                .description(row.get("description"))
-                .bodyPart(row.get("body_part"))
-                .pinyin(row.get("pinyin"))
-                .frequency(parseInteger(row.get("frequency")))
-                .severity(parseInteger(row.get("severity")))
-                .urgent(parseBoolean(row.get("urgent")))
+                .id(getStringWithFallback(row, "id"))
+                .name(getStringWithFallback(row, "name"))
+                .code(getStringWithFallback(row, "code"))
+                .categoryCode(getStringWithFallback(row, "categoryCode", "category_code"))
+                .categoryName(getStringWithFallback(row, "categoryName", "category_name"))
+                .description(getStringWithFallback(row, "description"))
+                .bodyPart(getStringWithFallback(row, "bodyPart", "body_part"))
+                .pinyin(getStringWithFallback(row, "pinyin"))
+                .frequency(parseInteger(getStringWithFallback(row, "frequency")))
+                .severity(parseInteger(getStringWithFallback(row, "severity")))
+                .urgent(parseBoolean(getStringWithFallback(row, "urgent")))
                 .build();
     }
 
@@ -330,16 +330,16 @@ public class DataImportService {
 
     private IcdCode mapToIcdCode(Map<String, String> row) {
         return IcdCode.builder()
-                .code(row.get("code"))
-                .descriptionEn(row.get("description_en"))
-                .descriptionCn(row.get("description_cn"))
-                .chapterCode(row.get("chapter_code"))
-                .chapterName(row.get("chapter_name"))
-                .sectionCode(row.get("section_code"))
-                .sectionName(row.get("section_name"))
-                .diseaseClass(row.get("disease_class"))
-                .drgCode(row.get("drg_code"))
-                .medicalInsurance(parseBoolean(row.get("medical_insurance")))
+                .code(getStringWithFallback(row, "code"))
+                .descriptionEn(getStringWithFallback(row, "descriptionEn", "description_en"))
+                .descriptionCn(getStringWithFallback(row, "descriptionCn", "description_cn"))
+                .chapterCode(getStringWithFallback(row, "chapterCode", "chapter_code"))
+                .chapterName(getStringWithFallback(row, "chapterName", "chapter_name"))
+                .sectionCode(getStringWithFallback(row, "sectionCode", "section_code"))
+                .sectionName(getStringWithFallback(row, "sectionName", "section_name"))
+                .diseaseClass(getStringWithFallback(row, "diseaseClass", "disease_class"))
+                .drgCode(getStringWithFallback(row, "drgCode", "drg_code"))
+                .medicalInsurance(parseBoolean(getStringWithFallback(row, "medicalInsurance", "medical_insurance")))
                 .build();
     }
 
@@ -360,23 +360,23 @@ public class DataImportService {
 
     private Drug mapToDrug(Map<String, String> row) {
         return Drug.builder()
-                .id(row.get("id"))
-                .name(row.get("name"))
-                .drugCode(row.get("drug_code"))
-                .genericName(row.get("generic_name"))
-                .brandName(row.get("brand_name"))
-                .englishName(row.get("english_name"))
-                .category(row.get("category"))
-                .type(row.get("type"))
-                .specification(row.get("specification"))
-                .unit(row.get("unit"))
-                .manufacturer(row.get("manufacturer"))
-                .approvalNumber(row.get("approval_number"))
-                .price(parseDouble(row.get("price")))
-                .stock(parseInteger(row.get("stock")))
-                .routeOfAdministration(row.get("route_of_administration"))
-                .essential(parseBoolean(row.get("essential")))
-                .medicalInsurance(parseBoolean(row.get("medical_insurance")))
+                .id(getStringWithFallback(row, "id"))
+                .name(getStringWithFallback(row, "name"))
+                .drugCode(getStringWithFallback(row, "drugCode", "drug_code"))
+                .genericName(getStringWithFallback(row, "genericName", "generic_name"))
+                .brandName(getStringWithFallback(row, "brandName", "brand_name"))
+                .englishName(getStringWithFallback(row, "englishName", "english_name"))
+                .category(getStringWithFallback(row, "category"))
+                .type(getStringWithFallback(row, "type"))
+                .specification(getStringWithFallback(row, "specification"))
+                .unit(getStringWithFallback(row, "unit"))
+                .manufacturer(getStringWithFallback(row, "manufacturer"))
+                .approvalNumber(getStringWithFallback(row, "approvalNumber", "approval_number"))
+                .price(parseDouble(getStringWithFallback(row, "price")))
+                .stock(parseInteger(getStringWithFallback(row, "stock")))
+                .routeOfAdministration(getStringWithFallback(row, "routeOfAdministration", "route_of_administration"))
+                .essential(parseBoolean(getStringWithFallback(row, "essential")))
+                .medicalInsurance(parseBoolean(getStringWithFallback(row, "medicalInsurance", "medical_insurance")))
                 .build();
     }
 
@@ -434,48 +434,51 @@ public class DataImportService {
 
     private Disease mapToDisease(Map<String, String> row) {
         return Disease.builder()
-                .id(row.get("id"))
-                .name(row.get("name"))
-                .diseaseCode(row.get("disease_code"))
-                .icd10Code(row.get("icd10_code"))
-                .category(row.get("category"))
-                .system(row.get("system"))
-                .severity(row.get("severity"))
-                .infectious(parseBoolean(row.get("infectious")))
-                .hereditary(parseBoolean(row.get("hereditary")))
-                .description(row.get("description"))
-                .etiology(row.get("etiology"))
-                .treatment(row.get("treatment"))
-                .prognosis(row.get("prognosis"))
+                .id(getStringWithFallback(row, "id"))
+                .name(getStringWithFallback(row, "name"))
+                .diseaseCode(getStringWithFallback(row, "diseaseCode", "disease_code"))
+                .icd10Code(getStringWithFallback(row, "icd10Code", "icd10_code"))
+                .category(getStringWithFallback(row, "category"))
+                .system(getStringWithFallback(row, "system"))
+                .severity(getStringWithFallback(row, "severity"))
+                .infectious(parseBoolean(getStringWithFallback(row, "infectious")))
+                .hereditary(parseBoolean(getStringWithFallback(row, "hereditary")))
+                .description(getStringWithFallback(row, "description"))
+                .etiology(getStringWithFallback(row, "etiology"))
+                .treatment(getStringWithFallback(row, "treatment"))
+                .prognosis(getStringWithFallback(row, "prognosis"))
                 .build();
     }
 
     private Disease mapToDiseaseFromMap(Map<String, Object> data) {
         return Disease.builder()
-                .id(getString(data, "id"))
-                .name(getString(data, "name"))
-                .diseaseCode(getString(data, "disease_code"))
-                .icd10Code(getString(data, "icd10_code"))
-                .category(getString(data, "category"))
-                .system(getString(data, "system"))
-                .severity(getString(data, "severity"))
-                .infectious(getBoolean(data, "infectious"))
-                .hereditary(getBoolean(data, "hereditary"))
-                .description(getString(data, "description"))
-                .etiology(getString(data, "etiology"))
-                .treatment(getString(data, "treatment"))
-                .prognosis(getString(data, "prognosis"))
+                .id(getStringWithFallbackFromObject(data, "id"))
+                .name(getStringWithFallbackFromObject(data, "name"))
+                .diseaseCode(getStringWithFallbackFromObject(data, "diseaseCode", "disease_code"))
+                .icd10Code(getStringWithFallbackFromObject(data, "icd10Code", "icd10_code"))
+                .category(getStringWithFallbackFromObject(data, "category"))
+                .system(getStringWithFallbackFromObject(data, "system"))
+                .severity(getStringWithFallbackFromObject(data, "severity"))
+                .infectious(getBooleanWithFallback(data, "infectious"))
+                .hereditary(getBooleanWithFallback(data, "hereditary"))
+                .description(getStringWithFallbackFromObject(data, "description"))
+                .etiology(getStringWithFallbackFromObject(data, "etiology"))
+                .treatment(getStringWithFallbackFromObject(data, "treatment"))
+                .prognosis(getStringWithFallbackFromObject(data, "prognosis"))
                 .build();
     }
 
     private KnowledgeRelation mapToRelation(Map<String, String> row) {
-        String sourceId = row.get("source_id");
-        String sourceName = row.get("source_name");
-        String sourceLabel = row.get("source_label");
-        String targetId = row.get("target_id");
-        String targetName = row.get("target_name");
-        String targetLabel = row.get("target_label");
-        String type = row.get("type");
+        String sourceId = getStringWithFallback(row, "sourceId", "source_id");
+        String sourceName = getStringWithFallback(row, "sourceName", "source_name");
+        String sourceLabel = getStringWithFallback(row, "sourceLabel", "source_label");
+        String targetId = getStringWithFallback(row, "targetId", "target_id");
+        String targetName = getStringWithFallback(row, "targetName", "target_name");
+        String targetLabel = getStringWithFallback(row, "targetLabel", "target_label");
+        String type = getStringWithFallback(row, "type");
+        String description = getStringWithFallback(row, "description");
+        String weightStr = getStringWithFallback(row, "weight");
+        String urgentStr = getStringWithFallback(row, "urgent");
         
         if (sourceName == null || targetName == null || type == null) {
             log.warn("关系数据不完整，跳过: {}", row);
@@ -490,9 +493,9 @@ public class DataImportService {
                 .targetName(targetName)
                 .targetLabel(targetLabel != null ? targetLabel : "UNKNOWN")
                 .type(type)
-                .description(row.get("description"))
-                .weight(parseDouble(row.get("weight")))
-                .priority(parseInteger(row.get("priority")))
+                .description(description)
+                .weight(parseDouble(weightStr))
+                .urgent(parseBoolean(urgentStr))
                 .build();
     }
 
@@ -521,6 +524,49 @@ public class DataImportService {
     }
 
     // ==================== 工具方法 ====================
+
+    /**
+     * 从Map<String, String>中获取值，支持多个可能的字段名（驼峰式和下划线式）
+     */
+    private String getStringWithFallback(Map<String, String> map, String... keys) {
+        for (String key : keys) {
+            String value = map.get(key);
+            if (value != null && !value.trim().isEmpty()) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 从Map<String, Object>中获取值，支持多个可能的字段名（驼峰式和下划线式）
+     */
+    private String getStringWithFallbackFromObject(Map<String, Object> map, String... keys) {
+        for (String key : keys) {
+            Object value = map.get(key);
+            if (value != null) {
+                String strValue = value.toString().trim();
+                if (!strValue.isEmpty()) {
+                    return strValue;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 从Map<String, Object>中获取布尔值，支持多个可能的字段名
+     */
+    private Boolean getBooleanWithFallback(Map<String, Object> map, String... keys) {
+        for (String key : keys) {
+            Object value = map.get(key);
+            if (value != null) {
+                String strValue = value.toString().trim().toLowerCase();
+                return "true".equals(strValue) || "1".equals(strValue);
+            }
+        }
+        return null;
+    }
 
     /**
      * 清理实体类型参数

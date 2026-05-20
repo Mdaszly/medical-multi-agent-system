@@ -185,6 +185,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import("@/views/admin/AppointmentManagement.vue"),
         meta: { title: "预约管理" },
       },
+      {
+        path: "knowledge-graph",
+        name: "KnowledgeGraph",
+        component: () => import("@/views/knowledge-graph/Index.vue"),
+        meta: { title: "知识图谱" },
+      },
     ],
   },
 

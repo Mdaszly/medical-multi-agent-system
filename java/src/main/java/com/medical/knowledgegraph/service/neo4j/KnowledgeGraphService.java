@@ -157,8 +157,8 @@ public class KnowledgeGraphService {
         String cypher = String.format(
                 "MATCH (source:%s {name: $sourceName}) " +
                 "MATCH (target:%s {name: $targetName}) " +
-                "CREATE (source)-[r:%s]->(target) " +
-                "SET r = $properties " +
+                "MERGE (source)-[r:%s]->(target) " +
+                "SET r += $properties " +
                 "RETURN r",
                 relation.getSourceLabel(),
                 relation.getTargetLabel(),
@@ -197,8 +197,8 @@ public class KnowledgeGraphService {
                     String cypher = String.format(
                             "MATCH (source:%s {name: $sourceName}) " +
                             "MATCH (target:%s {name: $targetName}) " +
-                            "CREATE (source)-[r:%s]->(target) " +
-                            "SET r = $props",
+                            "MERGE (source)-[r:%s]->(target) " +
+                            "SET r += $props",
                             relation.getSourceLabel() != null ? relation.getSourceLabel() : "UNKNOWN",
                             relation.getTargetLabel() != null ? relation.getTargetLabel() : "UNKNOWN",
                             relation.getType()
@@ -337,10 +337,22 @@ public class KnowledgeGraphService {
         return executeQuery(cypher, params);
     }
 
-    private static final String SYMPTOM_DIAGNOSIS_CYPHER =
-            "MATCH (s:Symptom {name: $name})-[:INDICATES]->(d:Disease) " +
+    /** 症状诊断：标量结果（供 Facade / 同步等表格化消费） */
+    private static final String SYMPTOM_DIAGNOSIS_SCALAR_CYPHER =
+            "MATCH (s:Symptom {name: $name})-[r:INDICATES]->(d:Disease) " +
             "OPTIONAL MATCH (d)-[:CLASSIFIED_AS]->(i:ICD10) " +
             "RETURN s.name AS symptom, d.name AS disease, " +
+            "       d.diseaseCode AS diseaseCode, " +
+            "       i.code AS icdCode, i.descriptionCn AS icdDescription, " +
+            "       coalesce(r.weight, 1.0) AS weight " +
+            "ORDER BY weight DESC";
+
+    /** 症状诊断：同时返回图节点与关系（供 REST diagnosis 接口） */
+    private static final String SYMPTOM_DIAGNOSIS_GRAPH_CYPHER =
+            "MATCH (s:Symptom {name: $name})-[r:INDICATES]->(d:Disease) " +
+            "OPTIONAL MATCH (d)-[c:CLASSIFIED_AS]->(i:ICD10) " +
+            "RETURN s, r, d, c, i, " +
+            "       s.name AS symptom, d.name AS disease, " +
             "       d.diseaseCode AS diseaseCode, " +
             "       i.code AS icdCode, i.descriptionCn AS icdDescription, " +
             "       coalesce(r.weight, 1.0) AS weight " +
@@ -357,41 +369,50 @@ public class KnowledgeGraphService {
             "LIMIT $limit";
 
     /**
-     * 查询症状关联的疾病和ICD编码（兼容旧 API，内部走表格化查询）
+     * 查询症状关联的疾病和 ICD；填充 nodes、relations、去重后的 records。
      */
     public QueryResultDTO findSymptomDiagnoses(String symptomName) {
-        List<SymptomDiagnosisRow> rows = findSymptomDiagnosesRows(symptomName);
         long startTime = System.currentTimeMillis();
-        QueryResultDTO queryResult = QueryResultDTO.builder()
-                .query(SYMPTOM_DIAGNOSIS_CYPHER)
-                .queryType("SYMPTOM_DIAGNOSIS")
-                .executionTime(0L)
-                .nodes(new ArrayList<>())
-                .relations(new ArrayList<>())
-                .paths(new ArrayList<>())
-                .records(rows.stream().map(this::rowToMap).collect(Collectors.toList()))
-                .totalCount(rows.size())
-                .build();
-        queryResult.setExecutionTime(System.currentTimeMillis() - startTime);
-        return queryResult;
+        if (symptomName == null || symptomName.isBlank()) {
+            return buildSymptomDiagnosisResult(List.of(), List.of(), List.of(), startTime);
+        }
+
+        Map<Long, QueryResultDTO.NodeResult> nodeById = new LinkedHashMap<>();
+        Map<Long, QueryResultDTO.RelationResult> relById = new LinkedHashMap<>();
+        LinkedHashMap<String, SymptomDiagnosisRow> recordByKey = new LinkedHashMap<>();
+
+        try (Session session = neo4jDriver.session()) {
+            Result result = session.run(
+                    SYMPTOM_DIAGNOSIS_GRAPH_CYPHER, Map.of("name", symptomName.trim()));
+            while (result.hasNext()) {
+                Record record = result.next();
+                mergeGraphEntities(record, nodeById, relById);
+                SymptomDiagnosisRow row = mapRecordToRow(record);
+                recordByKey.putIfAbsent(diagnosisRecordKey(row), row);
+            }
+        } catch (Exception e) {
+            log.error("症状诊断图查询失败", e);
+            throw new KnowledgeGraphException("SYMPTOM_DIAGNOSIS_ERROR",
+                    "症状诊断查询失败: " + e.getMessage(), e);
+        }
+
+        List<SymptomDiagnosisRow> rows = new ArrayList<>(recordByKey.values());
+        return buildSymptomDiagnosisResult(
+                new ArrayList<>(nodeById.values()),
+                new ArrayList<>(relById.values()),
+                rows,
+                startTime);
     }
 
     /**
-     * 表格化查询：症状 -> 疾病 -> ICD
+     * 表格化查询：症状 -> 疾病 -> ICD（已按疾病+ICD 去重）
      */
     public List<SymptomDiagnosisRow> findSymptomDiagnosesRows(String symptomName) {
         if (symptomName == null || symptomName.isBlank()) {
             return List.of();
         }
-        String cypher =
-                "MATCH (s:Symptom {name: $name})-[r:INDICATES]->(d:Disease) " +
-                "OPTIONAL MATCH (d)-[:CLASSIFIED_AS]->(i:ICD10) " +
-                "RETURN s.name AS symptom, d.name AS disease, " +
-                "       d.diseaseCode AS diseaseCode, " +
-                "       i.code AS icdCode, i.descriptionCn AS icdDescription, " +
-                "       coalesce(r.weight, 1.0) AS weight " +
-                "ORDER BY weight DESC";
-        return runSymptomDiagnosisQuery(cypher, Map.of("name", symptomName.trim()));
+        return runSymptomDiagnosisQuery(
+                SYMPTOM_DIAGNOSIS_SCALAR_CYPHER, Map.of("name", symptomName.trim()));
     }
 
     /**
@@ -486,7 +507,7 @@ public class KnowledgeGraphService {
             while (result.hasNext()) {
                 rows.add(mapRecordToRow(result.next()));
             }
-            return rows;
+            return deduplicateDiagnosisRows(rows);
         } catch (Exception e) {
             log.error("症状诊断查询失败: {}", cypher, e);
             throw new KnowledgeGraphException("SYMPTOM_DIAGNOSIS_ERROR",
@@ -507,7 +528,7 @@ public class KnowledgeGraphService {
                 }
                 rows.add(row);
             }
-            return rows;
+            return deduplicateDiagnosisRows(rows);
         } catch (Exception e) {
             log.error("图谱导出查询失败", e);
             throw new KnowledgeGraphException("GRAPH_EXPORT_ERROR",
@@ -537,6 +558,64 @@ public class KnowledgeGraphService {
             return null;
         }
         return value.asDouble();
+    }
+
+    private QueryResultDTO buildSymptomDiagnosisResult(
+            List<QueryResultDTO.NodeResult> nodes,
+            List<QueryResultDTO.RelationResult> relations,
+            List<SymptomDiagnosisRow> rows,
+            long startTime) {
+        int count = rows.size();
+        return QueryResultDTO.builder()
+                .queryId(UUID.randomUUID().toString())
+                .query(SYMPTOM_DIAGNOSIS_GRAPH_CYPHER)
+                .queryType("SYMPTOM_DIAGNOSIS")
+                .executionTime(System.currentTimeMillis() - startTime)
+                .totalCount(count)
+                .nodes(nodes)
+                .relations(relations)
+                .paths(new ArrayList<>())
+                .records(rows.stream().map(this::rowToMap).collect(Collectors.toList()))
+                .pagination(QueryResultDTO.Pagination.builder()
+                        .page(1)
+                        .pageSize(Math.max(count, 1))
+                        .totalPages(count > 0 ? 1 : 0)
+                        .hasNext(false)
+                        .hasPrevious(false)
+                        .build())
+                .build();
+    }
+
+    private void mergeGraphEntities(
+            Record record,
+            Map<Long, QueryResultDTO.NodeResult> nodeById,
+            Map<Long, QueryResultDTO.RelationResult> relById) {
+        for (String key : List.of("s", "d", "i")) {
+            Value value = record.get(key);
+            if (!value.isNull() && value.type().name().startsWith("NODE")) {
+                Node node = value.asNode();
+                nodeById.putIfAbsent(node.id(), extractNode(node));
+            }
+        }
+        for (String key : List.of("r", "c")) {
+            Value value = record.get(key);
+            if (!value.isNull() && value.type().name().startsWith("RELATIONSHIP")) {
+                Relationship rel = value.asRelationship();
+                relById.putIfAbsent(rel.id(), extractRelation(rel));
+            }
+        }
+    }
+
+    private List<SymptomDiagnosisRow> deduplicateDiagnosisRows(List<SymptomDiagnosisRow> rows) {
+        LinkedHashMap<String, SymptomDiagnosisRow> unique = new LinkedHashMap<>();
+        for (SymptomDiagnosisRow row : rows) {
+            unique.putIfAbsent(diagnosisRecordKey(row), row);
+        }
+        return new ArrayList<>(unique.values());
+    }
+
+    private String diagnosisRecordKey(SymptomDiagnosisRow row) {
+        return Objects.toString(row.getDisease(), "") + "|" + Objects.toString(row.getIcdCode(), "");
     }
 
     private Map<String, Object> rowToMap(SymptomDiagnosisRow row) {
@@ -610,13 +689,23 @@ public class KnowledgeGraphService {
     private QueryResultDTO.NodeResult extractNode(Node node) {
         Map<String, Object> props = new HashMap<>();
         node.keys().forEach(key -> props.put(key, node.get(key).asObject()));
-        
+
         return QueryResultDTO.NodeResult.builder()
                 .id(String.valueOf(node.id()))
                 .label(node.labels().iterator().next())
-                .name(node.get("name").asString())
+                .name(resolveNodeDisplayName(node))
                 .properties(props)
                 .build();
+    }
+
+    private String resolveNodeDisplayName(Node node) {
+        if (node.containsKey("name") && !node.get("name").isNull()) {
+            return node.get("name").asString();
+        }
+        if (node.containsKey("code") && !node.get("code").isNull()) {
+            return node.get("code").asString();
+        }
+        return "";
     }
 
     private QueryResultDTO.RelationResult extractRelation(Relationship rel) {
