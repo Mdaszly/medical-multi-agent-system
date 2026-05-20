@@ -10,6 +10,8 @@ import com.medical.model.dto.appointment.AppointmentCancelRequest;
 import com.medical.model.dto.appointment.AppointmentQueryRequest;
 import com.medical.model.vo.AppointmentSlotVO;
 import com.medical.model.vo.AppointmentVO;
+import com.medical.model.vo.DepartmentDateStatusVO;
+import com.medical.model.vo.DepartmentDoctorBookingVO;
 import com.medical.service.AppointmentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -171,6 +173,27 @@ public class AppointmentController {
      *
      * <p>权限说明：只要登录就能访问（公开查询）
      */
+    @GetMapping("/department/week-status")
+    @Operation(summary = "科室本周出诊状态", description = "按科室查询未来若干天的号源可用状态（有/满）")
+    @AuthCheck(mustRoles = {UserConstant.USER_ROLE, UserConstant.ADMIN_ROLE})
+    public BaseResponse<List<DepartmentDateStatusVO>> listDepartmentWeekStatus(
+            @Parameter(description = "科室名称", required = true) @RequestParam("department") String department,
+            @Parameter(description = "起始日期，默认今天") @RequestParam(value = "startDate", required = false)
+            @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
+            @Parameter(description = "查询天数，默认7") @RequestParam(value = "days", required = false, defaultValue = "7") int days) {
+        return ResultUtils.success(appointmentService.listDepartmentWeekStatus(department, startDate, days));
+    }
+
+    @GetMapping("/department/doctors")
+    @Operation(summary = "科室可预约医生", description = "按科室与日期查询医生及上下午余号")
+    @AuthCheck(mustRoles = {UserConstant.USER_ROLE, UserConstant.ADMIN_ROLE})
+    public BaseResponse<List<DepartmentDoctorBookingVO>> listDepartmentDoctorBooking(
+            @Parameter(description = "科室名称", required = true) @RequestParam("department") String department,
+            @Parameter(description = "排班日期", required = true) @RequestParam("scheduleDate")
+            @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate scheduleDate) {
+        return ResultUtils.success(appointmentService.listDepartmentDoctorBooking(department, scheduleDate));
+    }
+
     @GetMapping("/slots")
     @Operation(summary = "获取号源列表", description = "根据排班ID获取号源列表")
     @AuthCheck

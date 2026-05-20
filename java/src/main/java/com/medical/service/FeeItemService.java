@@ -97,4 +97,11 @@ public interface FeeItemService {
      * @param ids 费用项ID列表
      */
     void markAsSettled(List<Long> ids);
+
+    /**
+     * 根据处方ID删除费用项
+     *
+     * @param prescriptionId 处方ID
+     */
+    void deleteByPrescriptionId(Long prescriptionId);
 }

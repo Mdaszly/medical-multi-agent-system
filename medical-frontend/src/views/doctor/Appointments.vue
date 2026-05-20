@@ -75,15 +75,31 @@ onMounted(() => {
             <el-tag :type="statusMap[row.status]?.type">{{ statusMap[row.status]?.label }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="220">
+        <el-table-column label="操作" width="280">
           <template #default="{ row }">
             <el-button 
-              v-if="row.status === 0 || row.status === 1" 
+              v-if="row.status === 1" 
               type="primary" 
               size="small" 
               @click="handleStartConsult(row)"
             >
               开始接诊
+            </el-button>
+            <el-button 
+              v-if="row.status === 2" 
+              type="success" 
+              size="small" 
+              @click="handleStartConsult(row)"
+            >
+              修改处方
+            </el-button>
+            <el-button 
+              v-if="row.status === 0" 
+              type="warning" 
+              size="small" 
+              disabled
+            >
+              患者未签到
             </el-button>
             <el-button type="primary" size="small" link @click="handleViewDetail(row)">查看详情</el-button>
           </template>

@@ -37,17 +37,19 @@ const loadStats = async () => {
     if (appointmentRes.data) {
       const appointments = appointmentRes.data
       const today = new Date().toISOString().split('T')[0]
-      const todayCount = appointments.filter((a: any) => a.appointmentDate === today).length
-      const pendingCount = appointments.filter((a: any) => a.status === 0).length
+      const todayCount = appointments.filter((a: any) => a.scheduleDate === today).length
+      const pendingCount = appointments.filter((a: any) => a.status === 1).length
       const weekCount = appointments.length
       
       stats.value = [
-        { title: '今日接诊', value: todayCount, icon: Document, color: '#06b6d4' },
+        { title: '今日预约', value: todayCount, icon: Document, color: '#06b6d4' },
         { title: '本周预约', value: weekCount, icon: Calendar, color: '#14b8a6' },
-        { title: '待处理', value: pendingCount, icon: User, color: '#f59e0b' }
+        { title: '待接诊', value: pendingCount, icon: User, color: '#f59e0b' }
       ]
       
-      todayAppointments.value = appointments.filter((a: any) => a.appointmentDate === today && a.status === 0).slice(0, 5)
+      todayAppointments.value = appointments
+        .filter((a: any) => a.scheduleDate === today && a.status === 1)
+        .slice(0, 5)
     }
   } catch (error) {
     console.error('加载统计数据失败', error)
@@ -99,7 +101,7 @@ onMounted(() => {
     
     <el-card class="today-appointments">
       <template #header>
-        <span>今日待接诊</span>
+        <span>今日已签到待接诊</span>
       </template>
       <el-table v-if="todayAppointments.length > 0" :data="todayAppointments" style="width: 100%">
         <el-table-column prop="userName" label="患者姓名" />
@@ -107,7 +109,7 @@ onMounted(() => {
         <el-table-column prop="appointmentNo" label="预约编号" />
         <el-table-column label="操作" width="120">
           <template #default="{ row }">
-            <el-button type="primary" size="small">接诊</el-button>
+            <el-button type="primary" size="small" @click="router.push(`/doctor/prescription/${row.id}`)">接诊</el-button>
           </template>
         </el-table-column>
       </el-table>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { House, User, UserFilled, Calendar, Document, SwitchButton } from '@element-plus/icons-vue'
+import { House, User, UserFilled, Calendar, Document, Tickets, SwitchButton } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -12,7 +12,8 @@ const menuItems = [
   { path: '/admin/users', title: '用户管理', icon: User },
   { path: '/admin/doctors', title: '医生管理', icon: UserFilled },
   { path: '/admin/schedules', title: '排班管理', icon: Calendar },
-  { path: '/admin/appointments', title: '预约管理', icon: Document }
+  { path: '/admin/appointments', title: '预约管理', icon: Document },
+  { path: '/admin/prescriptions', title: '处方管理', icon: Tickets }
 ]
 
 const handleLogout = () => {

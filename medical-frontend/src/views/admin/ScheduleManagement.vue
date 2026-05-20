@@ -2,8 +2,10 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { listSchedulePage } from '@/services/medical/paibanguanli'
+import ScheduleAddModal from '@/components/admin/ScheduleAddModal.vue'
 
 const loading = ref(false)
+const showAddModal = ref(false)
 
 const schedules = ref<any[]>([])
 
@@ -19,6 +21,12 @@ const statusMap: Record<number, { label: string; type: string }> = {
   2: { label: '已满', type: 'danger' }
 }
 
+const shiftTypeMap: Record<string, { label: string; type: string }> = {
+  MORNING: { label: '上午', type: 'info' },
+  AFTERNOON: { label: '下午', type: 'success' },
+  EVENING: { label: '晚间', type: 'warning' }
+}
+
 const loadSchedules = async () => {
   loading.value = true
   try {
@@ -32,11 +40,9 @@ const loadSchedules = async () => {
         doctorName: s.doctorName,
         department: s.department,
         scheduleDate: s.scheduleDate,
-        morningSlots: s.morningSlots,
-        afternoonSlots: s.afternoonSlots,
-        eveningSlots: s.eveningSlots,
-        maxAppointments: 20,
-        currentAppointments: (s.morningSlots?.length || 0) + (s.afternoonSlots?.length || 0) + (s.eveningSlots?.length || 0),
+        shiftType: s.shiftType,
+        maxAppointments: s.maxAppointments || 20,
+        currentAppointments: s.currentAppointments || 0,
         status: s.status
       }))
       pagination.value.total = res.data.total || 0
@@ -54,7 +60,16 @@ const handleEdit = (schedule: any) => {
 }
 
 const handleAdd = () => {
-  ElMessage.info('添加排班')
+  showAddModal.value = true
+}
+
+const handleAddSuccess = () => {
+  showAddModal.value = false
+  loadSchedules()
+}
+
+const handleCloseModal = () => {
+  showAddModal.value = false
 }
 
 onMounted(() => {
@@ -76,11 +91,11 @@ onMounted(() => {
         <el-table-column prop="doctorName" label="医生" />
         <el-table-column prop="department" label="科室" />
         <el-table-column prop="scheduleDate" label="日期" />
-        <el-table-column label="时段">
+        <el-table-column prop="shiftType" label="时段">
           <template #default="{ row }">
-            <el-tag v-if="row.morningSlots?.length" type="info">上午</el-tag>
-            <el-tag v-if="row.afternoonSlots?.length" type="success">下午</el-tag>
-            <el-tag v-if="row.eveningSlots?.length" type="warning">晚间</el-tag>
+            <el-tag :type="shiftTypeMap[row.shiftType]?.type || 'info'">
+              {{ shiftTypeMap[row.shiftType]?.label || row.shiftType }}
+            </el-tag>
           </template>
         </el-table-column>
         <el-table-column label="预约情况">
@@ -117,6 +132,12 @@ onMounted(() => {
       
       <el-empty v-if="!loading && schedules.length === 0" description="暂无排班" />
     </el-card>
+
+    <ScheduleAddModal
+      :visible="showAddModal"
+      @close="handleCloseModal"
+      @success="handleAddSuccess"
+    />
   </div>
 </template>
 

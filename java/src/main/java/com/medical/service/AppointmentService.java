@@ -7,6 +7,8 @@ import com.medical.model.dto.appointment.AppointmentQueryRequest;
 import com.medical.model.entity.Appointment;
 import com.medical.model.vo.AppointmentSlotVO;
 import com.medical.model.vo.AppointmentVO;
+import com.medical.model.vo.DepartmentDateStatusVO;
+import com.medical.model.vo.DepartmentDoctorBookingVO;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -32,4 +34,8 @@ public interface AppointmentService {
     void checkInAppointment(Long appointmentId);
 
     void updateAppointmentStatus(Long appointmentId, Integer status);
+
+    List<DepartmentDateStatusVO> listDepartmentWeekStatus(String department, LocalDate startDate, int days);
+
+    List<DepartmentDoctorBookingVO> listDepartmentDoctorBooking(String department, LocalDate scheduleDate);
 }

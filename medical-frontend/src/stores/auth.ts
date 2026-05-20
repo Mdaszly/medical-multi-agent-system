@@ -5,7 +5,7 @@ interface UserInfo {
   id?: number;
   userAccount?: string;
   userName?: string;
-  userRole?: "user" | "doctor" | "admin";
+  userRole?: "user" | "doctor" | "admin" | "pharmacist";
   token?: string;
   [key: string]: any;
 }

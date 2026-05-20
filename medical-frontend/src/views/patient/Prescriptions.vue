@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { listPrescriptionByUser, getPrescriptionById } from '@/services/medical/chufangguanli'
+import { listPrescriptionByUser } from '@/services/medical/chufangguanli'
 
+const router = useRouter()
 const loading = ref(false)
 const prescriptions = ref<any[]>([])
 
@@ -37,15 +39,8 @@ const loadPrescriptions = async () => {
   }
 }
 
-const handleViewDetail = async (prescription: any) => {
-  try {
-    const res = await getPrescriptionById({ id: prescription.id })
-    if (res.data) {
-      console.log('处方详情:', res.data)
-    }
-  } catch (error) {
-    ElMessage.error('获取处方详情失败')
-  }
+const handleViewDetail = (prescription: any) => {
+  router.push(`/patient/prescription/${prescription.id}`)
 }
 
 onMounted(() => {

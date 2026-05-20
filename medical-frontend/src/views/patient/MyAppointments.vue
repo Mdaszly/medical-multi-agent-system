@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { listAppointmentByUser, cancelAppointment } from '@/services/medical/yuyueguanli'
+import { listAppointmentByUser, cancelAppointment, checkInAppointment } from '@/services/medical/yuyueguanli'
 
 const loading = ref(false)
 const appointments = ref<any[]>([])
@@ -58,6 +58,25 @@ const handleCancel = async (appointment: any) => {
   }
 }
 
+const handleCheckIn = async (appointment: any) => {
+  try {
+    loading.value = true
+    const result = await checkInAppointment({ appointmentId: appointment.id })
+    
+    if (result.code === 0) {
+      ElMessage.success('签到成功')
+      await loadAppointments()
+    } else {
+      ElMessage.error(result.message || '签到失败')
+    }
+  } catch (error: any) {
+    console.error('签到失败', error)
+    ElMessage.error(error.message || '签到失败，请稍后重试')
+  } finally {
+    loading.value = false
+  }
+}
+
 onMounted(() => {
   loadAppointments()
 })
@@ -82,8 +101,17 @@ onMounted(() => {
           </template>
         </el-table-column>
         <el-table-column prop="createTime" label="创建时间" />
-        <el-table-column label="操作" width="120">
+        <el-table-column label="操作" width="200">
           <template #default="{ row }">
+            <el-button 
+              v-if="row.status === 0" 
+              size="small" 
+              type="success" 
+              @click="handleCheckIn(row)"
+              :disabled="loading"
+            >
+              签到
+            </el-button>
             <el-button 
               v-if="row.status === 0" 
               size="small" 
@@ -94,6 +122,7 @@ onMounted(() => {
             >
               取消预约
             </el-button>
+            <span v-else-if="row.status === 1" class="status-text">已签到</span>
             <span v-else-if="row.status === 4" class="status-text">已取消</span>
           </template>
         </el-table-column>

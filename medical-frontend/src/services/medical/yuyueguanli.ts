@@ -134,6 +134,36 @@ export async function getAppointmentSlots(
   );
 }
 
+/** 科室本周出诊状态 GET /api/appointment/department/week-status */
+export async function listDepartmentWeekStatus(
+  params: { department: string; startDate?: string; days?: number },
+  options?: { [key: string]: any }
+) {
+  return request<API.BaseResponseListDepartmentDateStatusVO>(
+    "/api/appointment/department/week-status",
+    {
+      method: "GET",
+      params: { ...params },
+      ...(options || {}),
+    }
+  );
+}
+
+/** 科室可预约医生 GET /api/appointment/department/doctors */
+export async function listDepartmentDoctorBooking(
+  params: { department: string; scheduleDate: string },
+  options?: { [key: string]: any }
+) {
+  return request<API.BaseResponseListDepartmentDoctorBookingVO>(
+    "/api/appointment/department/doctors",
+    {
+      method: "GET",
+      params: { ...params },
+      ...(options || {}),
+    }
+  );
+}
+
 /** 更新预约状态 管理员更新预约状态 POST /api/appointment/status/update */
 export async function updateAppointmentStatus(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)

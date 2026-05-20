@@ -73,7 +73,7 @@ const loadPatientList = async () => {
     const res = await listAppointmentByDoctor({})
     if (res.data) {
       patientList.value = res.data
-        .filter((a: any) => a.status === 0 || a.status === 1)
+        .filter((a: any) => a.status === 1 || a.status === 2)
         .map((a: any) => ({
           id: a.id,
           appointmentId: a.id,
@@ -97,6 +97,11 @@ const loadPatientInfo = async (appointmentId: number) => {
     const res = await getAppointmentById({ id: appointmentId })
     if (res.data) {
       const data = res.data
+      if (data.status !== 1 && data.status !== 2) {
+        ElMessage.error('该患者尚未签到，无法开方')
+        router.push('/doctor/appointments')
+        return
+      }
       patientInfo.value = {
         id: data.id,
         appointmentId: data.id,

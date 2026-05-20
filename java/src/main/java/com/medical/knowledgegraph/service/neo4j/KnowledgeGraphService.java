@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 public class KnowledgeGraphService {
 
     private final Driver neo4jDriver;
+    private final DiseasePropertyEnricher diseasePropertyEnricher;
 
     // ==================== 节点操作 ====================
 
@@ -341,22 +342,33 @@ public class KnowledgeGraphService {
     private static final String SYMPTOM_DIAGNOSIS_SCALAR_CYPHER =
             "MATCH (s:Symptom {name: $name})-[r:INDICATES]->(d:Disease) " +
             "OPTIONAL MATCH (d)-[:CLASSIFIED_AS]->(i:ICD10) " +
-            "RETURN s.name AS symptom, d.name AS disease, " +
-            "       d.diseaseCode AS diseaseCode, " +
-            "       i.code AS icdCode, i.descriptionCn AS icdDescription, " +
-            "       coalesce(r.weight, 1.0) AS weight " +
+            "WITH s, r, d, i, coalesce(r.weight, 1.0) AS weight " +
+            "ORDER BY weight DESC, " +
+            "         CASE WHEN d.diseaseCode IS NOT NULL THEN 0 ELSE 1 END, " +
+            "         CASE WHEN i.code IS NOT NULL THEN 0 ELSE 1 END " +
+            "WITH s.name AS symptom, d.name AS disease, d, head(collect(i)) AS i, max(weight) AS weight " +
+            "RETURN symptom, disease, " +
+            "       coalesce(d.diseaseCode, " +
+            "         CASE WHEN i.code IS NOT NULL THEN 'D_' + replace(i.code, '.', '_') ELSE null END) AS diseaseCode, " +
+            "       coalesce(d.icd10Code, i.code) AS icdCode, " +
+            "       i.descriptionCn AS icdDescription, weight " +
             "ORDER BY weight DESC";
 
-    /** 症状诊断：同时返回图节点与关系（供 REST diagnosis 接口） */
+    /** 症状诊断：图 + 标量；按疾病聚合 ICD，并 coalesce 编码字段 */
     private static final String SYMPTOM_DIAGNOSIS_GRAPH_CYPHER =
             "MATCH (s:Symptom {name: $name})-[r:INDICATES]->(d:Disease) " +
             "OPTIONAL MATCH (d)-[c:CLASSIFIED_AS]->(i:ICD10) " +
+            "WITH s, r, d, c, i, coalesce(r.weight, 1.0) AS weight " +
+            "ORDER BY weight DESC, " +
+            "         CASE WHEN d.diseaseCode IS NOT NULL THEN 0 ELSE 1 END, " +
+            "         CASE WHEN i.code IS NOT NULL THEN 0 ELSE 1 END " +
+            "WITH s, r, d, head(collect(c)) AS c, head(collect(i)) AS i, max(weight) AS weight " +
             "RETURN s, r, d, c, i, " +
             "       s.name AS symptom, d.name AS disease, " +
-            "       d.diseaseCode AS diseaseCode, " +
-            "       i.code AS icdCode, i.descriptionCn AS icdDescription, " +
-            "       coalesce(r.weight, 1.0) AS weight " +
-            "ORDER BY weight DESC";
+            "       coalesce(d.diseaseCode, " +
+            "         CASE WHEN i.code IS NOT NULL THEN 'D_' + replace(i.code, '.', '_') ELSE null END) AS diseaseCode, " +
+            "       coalesce(d.icd10Code, i.code) AS icdCode, " +
+            "       i.descriptionCn AS icdDescription, weight";
 
     private static final String SYMPTOM_DIAGNOSIS_FUZZY_CYPHER =
             "MATCH (s:Symptom)-[:INDICATES]->(d:Disease) " +
@@ -378,6 +390,7 @@ public class KnowledgeGraphService {
         }
 
         Map<Long, QueryResultDTO.NodeResult> nodeById = new LinkedHashMap<>();
+        Map<String, QueryResultDTO.NodeResult> diseaseByBusinessKey = new LinkedHashMap<>();
         Map<Long, QueryResultDTO.RelationResult> relById = new LinkedHashMap<>();
         LinkedHashMap<String, SymptomDiagnosisRow> recordByKey = new LinkedHashMap<>();
 
@@ -386,9 +399,12 @@ public class KnowledgeGraphService {
                     SYMPTOM_DIAGNOSIS_GRAPH_CYPHER, Map.of("name", symptomName.trim()));
             while (result.hasNext()) {
                 Record record = result.next();
-                mergeGraphEntities(record, nodeById, relById);
-                SymptomDiagnosisRow row = mapRecordToRow(record);
-                recordByKey.putIfAbsent(diagnosisRecordKey(row), row);
+                SymptomDiagnosisRow row = diseasePropertyEnricher.enrichDiagnosisRow(mapRecordToRow(record));
+                recordByKey.merge(
+                        diseasePropertyEnricher.diagnosisDedupKey(row),
+                        row,
+                        diseasePropertyEnricher::mergeDiagnosisRows);
+                mergeGraphEntities(record, nodeById, diseaseByBusinessKey, relById, row);
             }
         } catch (Exception e) {
             log.error("症状诊断图查询失败", e);
@@ -396,12 +412,16 @@ public class KnowledgeGraphService {
                     "症状诊断查询失败: " + e.getMessage(), e);
         }
 
+        List<QueryResultDTO.NodeResult> mergedNodes = assembleDiagnosisNodes(nodeById, diseaseByBusinessKey);
         List<SymptomDiagnosisRow> rows = new ArrayList<>(recordByKey.values());
-        return buildSymptomDiagnosisResult(
-                new ArrayList<>(nodeById.values()),
-                new ArrayList<>(relById.values()),
-                rows,
-                startTime);
+        return buildSymptomDiagnosisResult(mergedNodes, new ArrayList<>(relById.values()), rows, startTime);
+    }
+
+    /**
+     * 从 ICD 关系回写 Disease 节点上缺失的 diseaseCode / icd10Code（启动或运维可调用）。
+     */
+    public long backfillDiseaseCodes() {
+        return diseasePropertyEnricher.backfillFromIcdRelationships(neo4jDriver);
     }
 
     /**
@@ -589,13 +609,25 @@ public class KnowledgeGraphService {
     private void mergeGraphEntities(
             Record record,
             Map<Long, QueryResultDTO.NodeResult> nodeById,
-            Map<Long, QueryResultDTO.RelationResult> relById) {
-        for (String key : List.of("s", "d", "i")) {
+            Map<String, QueryResultDTO.NodeResult> diseaseByBusinessKey,
+            Map<Long, QueryResultDTO.RelationResult> relById,
+            SymptomDiagnosisRow row) {
+        for (String key : List.of("s", "i")) {
             Value value = record.get(key);
             if (!value.isNull() && value.type().name().startsWith("NODE")) {
                 Node node = value.asNode();
                 nodeById.putIfAbsent(node.id(), extractNode(node));
             }
+        }
+        Value diseaseVal = record.get("d");
+        if (!diseaseVal.isNull() && diseaseVal.type().name().startsWith("NODE")) {
+            Node diseaseNode = diseaseVal.asNode();
+            QueryResultDTO.NodeResult extracted = diseasePropertyEnricher.enrichDiseaseNodeResult(
+                    extractNode(diseaseNode), row);
+            diseaseByBusinessKey.merge(
+                    diseasePropertyEnricher.diseaseNodeKey(extracted),
+                    extracted,
+                    diseasePropertyEnricher::mergeDiseaseNodeResults);
         }
         for (String key : List.of("r", "c")) {
             Value value = record.get(key);
@@ -609,13 +641,25 @@ public class KnowledgeGraphService {
     private List<SymptomDiagnosisRow> deduplicateDiagnosisRows(List<SymptomDiagnosisRow> rows) {
         LinkedHashMap<String, SymptomDiagnosisRow> unique = new LinkedHashMap<>();
         for (SymptomDiagnosisRow row : rows) {
-            unique.putIfAbsent(diagnosisRecordKey(row), row);
+            SymptomDiagnosisRow enriched = diseasePropertyEnricher.enrichDiagnosisRow(row);
+            unique.merge(
+                    diseasePropertyEnricher.diagnosisDedupKey(enriched),
+                    enriched,
+                    diseasePropertyEnricher::mergeDiagnosisRows);
         }
         return new ArrayList<>(unique.values());
     }
 
-    private String diagnosisRecordKey(SymptomDiagnosisRow row) {
-        return Objects.toString(row.getDisease(), "") + "|" + Objects.toString(row.getIcdCode(), "");
+    private List<QueryResultDTO.NodeResult> assembleDiagnosisNodes(
+            Map<Long, QueryResultDTO.NodeResult> nodeById,
+            Map<String, QueryResultDTO.NodeResult> diseaseByBusinessKey) {
+        List<QueryResultDTO.NodeResult> result = new ArrayList<>(diseaseByBusinessKey.values());
+        for (QueryResultDTO.NodeResult node : nodeById.values()) {
+            if (!"Disease".equals(node.getLabel())) {
+                result.add(node);
+            }
+        }
+        return result;
     }
 
     private Map<String, Object> rowToMap(SymptomDiagnosisRow row) {

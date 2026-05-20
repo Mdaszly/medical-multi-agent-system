@@ -8,6 +8,7 @@ import com.medical.constant.UserConstant;
 import com.medical.model.dto.prescription.PrescriptionAddRequest;
 import com.medical.model.dto.prescription.PrescriptionQueryRequest;
 import com.medical.model.dto.prescription.PrescriptionStatusUpdateRequest;
+import com.medical.model.dto.prescription.PrescriptionUpdateRequest;
 import com.medical.model.vo.PrescriptionVO;
 import com.medical.service.PrescriptionService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -101,7 +102,7 @@ public class PrescriptionController {
 
     @PostMapping("/list/page")
     @Operation(summary = "分页查询处方", description = "管理员分页查询处方列表")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @AuthCheck(mustRoles = {UserConstant.ADMIN_ROLE, UserConstant.PHARMACIST_ROLE})
     public BaseResponse<IPage<PrescriptionVO>> listPrescriptionPage(@RequestBody PrescriptionQueryRequest request) {
         log.info("分页查询处方: request={}", request);
         long current = request.getCurrent() != null ? request.getCurrent() : 1;
@@ -139,5 +140,14 @@ public class PrescriptionController {
         log.info("取消处方: prescriptionId={}", prescriptionId);
         prescriptionService.cancelPrescription(prescriptionId);
         return ResultUtils.success(null);
+    }
+
+    @PostMapping("/update")
+    @Operation(summary = "修改处方", description = "修改处方信息（仅可修改待审核状态的处方）")
+    @AuthCheck(mustRoles = {UserConstant.DOCTOR_ROLE, UserConstant.ADMIN_ROLE})
+    public BaseResponse<PrescriptionVO> updatePrescription(@RequestBody PrescriptionUpdateRequest request) {
+        log.info("修改处方: request={}", request);
+        PrescriptionVO prescriptionVO = prescriptionService.updatePrescription(request);
+        return ResultUtils.success(prescriptionVO);
     }
 }

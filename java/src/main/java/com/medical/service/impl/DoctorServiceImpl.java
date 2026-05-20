@@ -90,6 +90,8 @@ public class DoctorServiceImpl implements DoctorService {
             }
             if (request.getWorkStatus() != null) {
                 wrapper.eq(Doctor::getWorkStatus, request.getWorkStatus());
+            } else if (Boolean.TRUE.equals(request.getOnlineOnly())) {
+                wrapper.eq(Doctor::getWorkStatus, UserConstant.DOCTOR_STATUS_ONLINE);
             }
         }
         
@@ -145,6 +147,20 @@ public class DoctorServiceImpl implements DoctorService {
 
         return doctors.stream()
                 .map(DoctorVO::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<String> listDepartments() {
+        LambdaQueryWrapper<Doctor> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Doctor::getWorkStatus, UserConstant.DOCTOR_STATUS_ONLINE)
+                .eq(Doctor::getIsDelete, UserConstant.NOT_DELETED)
+                .isNotNull(Doctor::getDepartment);
+        return doctorMapper.selectList(wrapper).stream()
+                .map(Doctor::getDepartment)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .sorted()
                 .collect(Collectors.toList());
     }
 

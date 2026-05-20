@@ -20,6 +20,11 @@ public interface ScheduleMapper extends BaseMapper<Schedule> {
             @Param("department") String department,
             @Param("scheduleDate") LocalDate scheduleDate);
 
+    List<Schedule> selectByDepartmentAndDateRange(
+            @Param("department") String department,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate);
+
     List<Schedule> selectOnDutyDoctors(
             @Param("scheduleDate") LocalDate scheduleDate,
             @Param("shiftType") String shiftType);

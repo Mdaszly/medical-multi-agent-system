@@ -26,6 +26,7 @@ public class KnowledgeGraphBootstrap implements ApplicationRunner {
         }
         try {
             seedData.seedIfNeeded();
+            seedData.backfillDiseaseCodes();
             if (graphProperties.isSyncToRdbOnStartup()) {
                 symptomIcdSyncService.syncFromNeo4j();
             }

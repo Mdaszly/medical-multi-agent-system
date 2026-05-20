@@ -8,6 +8,7 @@ import com.medical.common.ErrorCode;
 import com.medical.common.RedisCacheUtil;
 import com.medical.common.RedissonLockUtil;
 import com.medical.constant.AppointmentConstant;
+import com.medical.constant.ScheduleConstant;
 import com.medical.constant.UserConstant;
 import com.medical.exception.ThrowUtils;
 import com.medical.mapper.*;
@@ -17,6 +18,8 @@ import com.medical.model.dto.appointment.AppointmentQueryRequest;
 import com.medical.model.entity.*;
 import com.medical.model.vo.AppointmentSlotVO;
 import com.medical.model.vo.AppointmentVO;
+import com.medical.model.vo.DepartmentDateStatusVO;
+import com.medical.model.vo.DepartmentDoctorBookingVO;
 import com.medical.service.AppointmentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +31,11 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -90,6 +97,8 @@ public class AppointmentServiceImpl implements AppointmentService {
         // 步骤1：验证排班信息是否存在
         Schedule schedule = scheduleMapper.selectById(scheduleId);
         ThrowUtils.throwIf(schedule == null, ErrorCode.PARAM_ERROR, "排班不存在");
+        ThrowUtils.throwIf(schedule.getScheduleDate() != null && schedule.getScheduleDate().isBefore(LocalDate.now()),
+                ErrorCode.PARAM_ERROR, "不能预约过去的日期");
 
         // 步骤2：查询指定时段的号源信息
         AppointmentSlot slot = getSlotByScheduleIdAndTimeSlot(scheduleId, timeSlot);
@@ -265,6 +274,112 @@ public class AppointmentServiceImpl implements AppointmentService {
         appointment.setStatus(status);
         appointment.setUpdateTime(LocalDateTime.now());
         appointmentMapper.updateById(appointment);
+    }
+
+    @Override
+    public List<DepartmentDateStatusVO> listDepartmentWeekStatus(String department, LocalDate startDate, int days) {
+        ThrowUtils.throwIf(!StringUtils.hasText(department), ErrorCode.PARAM_ERROR, "科室不能为空");
+        LocalDate start = startDate != null ? startDate : LocalDate.now();
+        int dayCount = days > 0 ? days : 7;
+
+        List<DepartmentDateStatusVO> result = new ArrayList<>();
+        for (int i = 0; i < dayCount; i++) {
+            LocalDate date = start.plusDays(i);
+            List<DepartmentDoctorBookingVO> doctors = listDepartmentDoctorBooking(department, date);
+            boolean hasAvailable = doctors.stream().anyMatch(DepartmentDoctorBookingVO::isBookable);
+            boolean hasSchedule = doctors.stream().anyMatch(DepartmentDoctorBookingVO::isHasSchedule);
+            boolean allFull = hasSchedule && !hasAvailable;
+
+            DepartmentDateStatusVO vo = new DepartmentDateStatusVO();
+            vo.setScheduleDate(date);
+            vo.setDayOfMonth(date.getDayOfMonth());
+            vo.setWeekDayLabel(getWeekDayLabel(date.getDayOfWeek().getValue()));
+            vo.setHasAvailable(hasAvailable);
+            vo.setAllFull(allFull);
+            result.add(vo);
+        }
+        return result;
+    }
+
+    @Override
+    public List<DepartmentDoctorBookingVO> listDepartmentDoctorBooking(String department, LocalDate scheduleDate) {
+        ThrowUtils.throwIf(!StringUtils.hasText(department), ErrorCode.PARAM_ERROR, "科室不能为空");
+        ThrowUtils.throwIf(scheduleDate == null, ErrorCode.PARAM_ERROR, "排班日期不能为空");
+        ThrowUtils.throwIf(scheduleDate.isBefore(LocalDate.now()), ErrorCode.PARAM_ERROR, "不能查询过去的日期");
+
+        LambdaQueryWrapper<Doctor> doctorWrapper = new LambdaQueryWrapper<>();
+        doctorWrapper.eq(Doctor::getDepartment, department)
+                .eq(Doctor::getWorkStatus, UserConstant.DOCTOR_STATUS_ONLINE)
+                .eq(Doctor::getIsDelete, UserConstant.NOT_DELETED)
+                .orderByAsc(Doctor::getTitle);
+        List<Doctor> doctors = doctorMapper.selectList(doctorWrapper);
+
+        List<Schedule> schedules = scheduleMapper.selectByDepartmentAndDate(department, scheduleDate);
+        Map<Long, List<Schedule>> schedulesByDoctor = new HashMap<>();
+        for (Schedule schedule : schedules) {
+            schedulesByDoctor.computeIfAbsent(schedule.getDoctorId(), k -> new ArrayList<>()).add(schedule);
+        }
+
+        List<DepartmentDoctorBookingVO> result = new ArrayList<>();
+        for (Doctor doctor : doctors) {
+            DepartmentDoctorBookingVO vo = new DepartmentDoctorBookingVO();
+            vo.setDoctorId(doctor.getId());
+            vo.setDoctorName(doctor.getDoctorName());
+            vo.setTitle(doctor.getTitle());
+            vo.setSpecialty(doctor.getSpecialty());
+            vo.setDescription(doctor.getDescription());
+            vo.setConsultationFee(doctor.getConsultationFee());
+
+            List<Schedule> doctorSchedules = schedulesByDoctor.getOrDefault(doctor.getId(), List.of());
+            vo.setHasSchedule(!doctorSchedules.isEmpty());
+
+            int morning = 0;
+            int afternoon = 0;
+            int evening = 0;
+            for (Schedule schedule : doctorSchedules) {
+                int available = sumAvailableSlots(schedule.getId());
+                String shift = schedule.getShiftType();
+                if (ScheduleConstant.SHIFT_MORNING.equals(shift)) {
+                    morning += available;
+                } else if (ScheduleConstant.SHIFT_AFTERNOON.equals(shift)) {
+                    afternoon += available;
+                } else if (ScheduleConstant.SHIFT_EVENING.equals(shift)) {
+                    evening += available;
+                } else {
+                    afternoon += available;
+                }
+            }
+            vo.setMorningRemaining(morning);
+            vo.setAfternoonRemaining(afternoon);
+            vo.setEveningRemaining(evening);
+            vo.setTotalRemaining(morning + afternoon + evening);
+            vo.setBookable(vo.getTotalRemaining() > 0);
+            result.add(vo);
+        }
+
+        result.sort(Comparator
+                .comparing(DepartmentDoctorBookingVO::isBookable).reversed()
+                .thenComparing(DepartmentDoctorBookingVO::getDoctorName));
+        return result;
+    }
+
+    private int sumAvailableSlots(Long scheduleId) {
+        return appointmentSlotMapper.selectByScheduleId(scheduleId).stream()
+                .mapToInt(slot -> slot.getAvailableSlots() != null ? slot.getAvailableSlots() : 0)
+                .sum();
+    }
+
+    private String getWeekDayLabel(int dayOfWeek) {
+        return switch (dayOfWeek) {
+            case 1 -> "周一";
+            case 2 -> "周二";
+            case 3 -> "周三";
+            case 4 -> "周四";
+            case 5 -> "周五";
+            case 6 -> "周六";
+            case 7 -> "周日";
+            default -> "";
+        };
     }
 
     /**

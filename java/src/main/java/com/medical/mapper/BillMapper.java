@@ -19,6 +19,11 @@ public interface BillMapper extends BaseMapper<Bill> {
     Bill selectByBillNo(@Param("billNo") String billNo);
 
     /**
+     * 根据预约ID查询账单
+     */
+    Bill selectByAppointmentId(@Param("appointmentId") Long appointmentId);
+
+    /**
      * 原子更新账单支付状态
      * 使用乐观锁确保并发安全
      * @param billId 账单ID

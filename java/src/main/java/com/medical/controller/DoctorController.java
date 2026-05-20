@@ -65,6 +65,13 @@ public class DoctorController {
         return ResultUtils.success(doctors);
     }
 
+    @GetMapping("/list/departments")
+    @Operation(summary = "查询可预约科室", description = "返回有在岗医生的科室列表")
+    public BaseResponse<List<String>> listDepartments() {
+        log.info("List bookable departments");
+        return ResultUtils.success(doctorService.listDepartments());
+    }
+
     @PostMapping("/add")
     @Operation(summary = "新增医生", description = "管理员新增医生")
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)

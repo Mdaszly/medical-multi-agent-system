@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.medical.common.ErrorCode;
+import com.medical.constant.AppointmentConstant;
 import com.medical.constant.DrugConstant;
 import com.medical.constant.PrescriptionConstant;
 import com.medical.exception.BusinessException;
@@ -13,8 +14,11 @@ import com.medical.mapper.*;
 import com.medical.model.dto.prescription.PrescriptionAddRequest;
 import com.medical.model.dto.prescription.PrescriptionQueryRequest;
 import com.medical.model.dto.prescription.PrescriptionStatusUpdateRequest;
+import com.medical.model.dto.prescription.PrescriptionUpdateRequest;
 import com.medical.model.entity.*;
 import com.medical.model.vo.PrescriptionVO;
+import com.medical.service.AppointmentService;
+import com.medical.service.BillService;
 import com.medical.service.DrugService;
 import com.medical.service.FeeItemService;
 import com.medical.service.PrescriptionService;
@@ -46,6 +50,8 @@ public class PrescriptionServiceImpl implements PrescriptionService {
     private final UserMapper userMapper;
     private final DrugService drugService;
     private final FeeItemService feeItemService;
+    private final BillService billService;
+    private final AppointmentService appointmentService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
@@ -62,6 +68,14 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         // 步骤1：验证预约信息
         Appointment appointment = appointmentMapper.selectById(appointmentId);
         ThrowUtils.throwIf(appointment == null, ErrorCode.PARAM_ERROR, "预约不存在");
+
+        ThrowUtils.throwIf(!doctorId.equals(appointment.getDoctorId()),
+                ErrorCode.NO_AUTH, "只能为自己接诊的患者开方");
+
+        Integer appointmentStatus = appointment.getStatus();
+        boolean canPrescribe = AppointmentConstant.APPOINTMENT_STATUS_CHECKED_IN.equals(appointmentStatus)
+                || AppointmentConstant.APPOINTMENT_STATUS_IN_CONSULTATION.equals(appointmentStatus);
+        ThrowUtils.throwIf(!canPrescribe, ErrorCode.PARAM_ERROR, "患者尚未签到，无法开方");
 
         // 步骤2：验证患者信息
         User user = userMapper.selectById(appointment.getUserId());
@@ -81,9 +95,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         prescription.setDoctorName(doctor.getDoctorName());
         prescription.setDepartment(doctor.getDepartment());
         prescription.setDiagnosis(request.getDiagnosis());  // 诊断信息
-        prescription.setStatus(PrescriptionConstant.PRESCRIPTION_STATUS_AUDITED);  // 医生开具即审核通过
-        prescription.setAuditTime(LocalDateTime.now());
-        prescription.setAuditUserId(doctorId);  // 医生自审
+        prescription.setStatus(PrescriptionConstant.PRESCRIPTION_STATUS_PENDING);  // 医生开具后需审核
         prescription.setRemark(request.getRemark());
 
         // 步骤5：处理药品明细，计算总金额
@@ -142,6 +154,14 @@ public class PrescriptionServiceImpl implements PrescriptionService {
 
         // 步骤8：自动生成费用项（用于后续结算）
         createFeeItems(prescription, items);
+
+        // 步骤9：更新预约状态为"诊疗中"
+        try {
+            appointmentService.updateAppointmentStatus(appointmentId, AppointmentConstant.APPOINTMENT_STATUS_IN_CONSULTATION);
+            log.info("处方创建后更新预约状态为诊疗中: appointmentId={}", appointmentId);
+        } catch (Exception e) {
+            log.warn("更新预约状态失败: appointmentId={}, error={}", appointmentId, e.getMessage());
+        }
 
         log.info("处方创建成功: prescriptionNo={}", prescription.getPrescriptionNo());
 
@@ -248,6 +268,22 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         prescription.setStatus(PrescriptionConstant.PRESCRIPTION_STATUS_DISPENSED);
         prescription.setDispenseTime(LocalDateTime.now());
         prescriptionMapper.updateById(prescription);
+
+        if (prescription.getAppointmentId() != null) {
+            generateBillAfterDispense(prescriptionId, prescription.getAppointmentId());
+        }
+    }
+
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
+    public void generateBillAfterDispense(Long prescriptionId, Long appointmentId) {
+        try {
+            billService.generateBill(appointmentId);
+            log.info("发药后自动生成账单成功: prescriptionId={}, appointmentId={}", 
+                    prescriptionId, appointmentId);
+        } catch (Exception e) {
+            log.warn("发药后自动生成账单失败: prescriptionId={}, appointmentId={}, error={}", 
+                    prescriptionId, appointmentId, e.getMessage());
+        }
     }
 
     @Override
@@ -263,6 +299,104 @@ public class PrescriptionServiceImpl implements PrescriptionService {
 
         prescription.setStatus(PrescriptionConstant.PRESCRIPTION_STATUS_CANCELLED);
         prescriptionMapper.updateById(prescription);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public PrescriptionVO updatePrescription(PrescriptionUpdateRequest request) {
+        Long prescriptionId = request.getId();
+        ThrowUtils.throwIf(prescriptionId == null || prescriptionId <= 0, ErrorCode.PARAM_ERROR, "处方ID无效");
+
+        Prescription prescription = prescriptionMapper.selectById(prescriptionId);
+        ThrowUtils.throwIf(prescription == null, ErrorCode.PARAM_ERROR, "处方不存在");
+
+        ThrowUtils.throwIf(!prescription.getStatus().equals(PrescriptionConstant.PRESCRIPTION_STATUS_PENDING),
+                ErrorCode.PARAM_ERROR, "只有待审核状态的处方可以修改");
+
+        Long doctorId = StpUtil.getLoginIdAsLong();
+        ThrowUtils.throwIf(!prescription.getDoctorId().equals(doctorId),
+                ErrorCode.NO_PERMISSION, "只能修改自己开具的处方");
+
+        if (StringUtils.hasText(request.getDiagnosis())) {
+            prescription.setDiagnosis(request.getDiagnosis());
+        }
+        if (StringUtils.hasText(request.getRemark())) {
+            prescription.setRemark(request.getRemark());
+        }
+
+        BigDecimal totalAmount = BigDecimal.ZERO;
+        List<PrescriptionItem> existingItems = prescriptionItemMapper.selectByPrescriptionId(prescriptionId);
+        List<Long> existingItemIds = existingItems.stream().map(PrescriptionItem::getId).collect(Collectors.toList());
+
+        List<Long> updatedItemIds = new ArrayList<>();
+
+        if (request.getDrugs() != null && !request.getDrugs().isEmpty()) {
+            for (PrescriptionUpdateRequest.PrescriptionDrugItem drugItem : request.getDrugs()) {
+                ThrowUtils.throwIf(!StringUtils.hasText(drugItem.getDrugCode()), ErrorCode.PARAM_ERROR, "药品编码不能为空");
+                ThrowUtils.throwIf(!StringUtils.hasText(drugItem.getDrugName()), ErrorCode.PARAM_ERROR, "药品名称不能为空");
+                ThrowUtils.throwIf(drugItem.getQuantity() == null || drugItem.getQuantity().compareTo(BigDecimal.ZERO) <= 0,
+                        ErrorCode.PARAM_ERROR, "药品数量必须大于0");
+
+                BigDecimal unitPrice = drugService.getCurrentPriceByCode(drugItem.getDrugCode(), DrugConstant.PRICE_TYPE_RETAIL);
+                ThrowUtils.throwIf(unitPrice == null, ErrorCode.PARAM_ERROR, "药品价格不存在: " + drugItem.getDrugName());
+
+                BigDecimal itemTotal = unitPrice.multiply(drugItem.getQuantity()).setScale(2, RoundingMode.HALF_UP);
+                totalAmount = totalAmount.add(itemTotal);
+
+                if (drugItem.getId() != null) {
+                    PrescriptionItem existingItem = existingItems.stream()
+                            .filter(i -> i.getId().equals(drugItem.getId()))
+                            .findFirst().orElse(null);
+                    if (existingItem != null) {
+                        existingItem.setDrugCode(drugItem.getDrugCode());
+                        existingItem.setDrugName(drugItem.getDrugName());
+                        existingItem.setSpecification(drugItem.getSpecification());
+                        existingItem.setDosage(drugItem.getDosage());
+                        existingItem.setUsage(drugItem.getUsage());
+                        existingItem.setFrequency(drugItem.getFrequency());
+                        existingItem.setDuration(drugItem.getDuration());
+                        existingItem.setQuantity(drugItem.getQuantity());
+                        existingItem.setUnitPrice(unitPrice);
+                        existingItem.setTotalAmount(itemTotal);
+                        prescriptionItemMapper.updateById(existingItem);
+                        updatedItemIds.add(drugItem.getId());
+                    }
+                } else {
+                    PrescriptionItem newItem = new PrescriptionItem();
+                    newItem.setPrescriptionId(prescriptionId);
+                    newItem.setDrugCode(drugItem.getDrugCode());
+                    newItem.setDrugName(drugItem.getDrugName());
+                    newItem.setSpecification(drugItem.getSpecification());
+                    newItem.setDosage(drugItem.getDosage());
+                    newItem.setUsage(drugItem.getUsage());
+                    newItem.setFrequency(drugItem.getFrequency());
+                    newItem.setDuration(drugItem.getDuration());
+                    newItem.setQuantity(drugItem.getQuantity());
+                    newItem.setUnitPrice(unitPrice);
+                    newItem.setTotalAmount(itemTotal);
+                    prescriptionItemMapper.insert(newItem);
+                }
+            }
+        }
+
+        List<Long> deletedItemIds = existingItemIds.stream()
+                .filter(id -> !updatedItemIds.contains(id))
+                .collect(Collectors.toList());
+        if (!deletedItemIds.isEmpty()) {
+            prescriptionItemMapper.deleteBatchIds(deletedItemIds);
+        }
+
+        prescription.setTotalAmount(totalAmount.setScale(2, RoundingMode.HALF_UP));
+        prescription.setUpdateTime(LocalDateTime.now());
+        prescriptionMapper.updateById(prescription);
+
+        feeItemService.deleteByPrescriptionId(prescriptionId);
+        List<PrescriptionItem> updatedItems = prescriptionItemMapper.selectByPrescriptionId(prescriptionId);
+        createFeeItems(prescription, updatedItems);
+
+        log.info("处方修改成功: prescriptionId={}", prescriptionId);
+
+        return buildPrescriptionVO(prescription);
     }
 
     private PrescriptionVO buildPrescriptionVO(Prescription prescription) {

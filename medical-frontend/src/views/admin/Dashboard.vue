@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { User, Document, Calendar, UserFilled } from '@element-plus/icons-vue'
+import { User, Document, Calendar, UserFilled, Tickets } from '@element-plus/icons-vue'
 import { listUserPage } from '@/services/medical/yonghuguanli'
 import { listDoctorPage } from '@/services/medical/yishengguanli'
 import { listAppointmentPage } from '@/services/medical/yuyueguanli'
@@ -21,7 +21,8 @@ const quickActions = [
   { title: '用户管理', path: '/admin/users', icon: User },
   { title: '医生管理', path: '/admin/doctors', icon: UserFilled },
   { title: '预约管理', path: '/admin/appointments', icon: Document },
-  { title: '排班管理', path: '/admin/schedules', icon: Calendar }
+  { title: '排班管理', path: '/admin/schedules', icon: Calendar },
+  { title: '处方管理', path: '/admin/prescriptions', icon: Tickets }
 ]
 
 const loadStats = async () => {

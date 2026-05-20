@@ -116,6 +116,13 @@ public class KnowledgeGraphSeedData {
         knowledgeGraphService.createRelationships(relations);
     }
 
+    /**
+     * 为历史/导入数据中缺少编码的 Disease 节点从 ICD10 关系回写编码。
+     */
+    public void backfillDiseaseCodes() {
+        knowledgeGraphService.backfillDiseaseCodes();
+    }
+
     private record IcdSeed(String code, String descriptionEn, String descriptionCn,
                            String chapterCode, String chapterName, String diseaseName) {}
 

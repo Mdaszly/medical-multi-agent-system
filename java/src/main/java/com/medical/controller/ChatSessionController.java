@@ -8,6 +8,7 @@ import com.medical.constant.UserConstant;
 import com.medical.model.dto.consult.ChatMessageSaveRequest;
 import com.medical.model.dto.consult.ChatSessionCreateRequest;
 import com.medical.model.dto.consult.ChatSessionTitleUpdateRequest;
+import com.medical.model.dto.consult.DeleteSessionRequest;
 import com.medical.model.vo.ChatMessageVO;
 import com.medical.model.vo.ChatSessionHistoryVO;
 import com.medical.model.vo.ChatSessionVO;
@@ -54,12 +55,12 @@ public class ChatSessionController {
         return ResultUtils.success(true);
     }
 
-    @DeleteMapping("/{sessionId}")
+    @PostMapping("/delete")
     @Operation(summary = "删除会话")
     @AuthCheck(mustRoles = {UserConstant.USER_ROLE, UserConstant.DOCTOR_ROLE, UserConstant.ADMIN_ROLE})
-    public BaseResponse<Boolean> deleteSession(@PathVariable String sessionId) {
+    public BaseResponse<Boolean> deleteSession(@RequestBody DeleteSessionRequest request) {
         Long userId = StpUtil.getLoginIdAsLong();
-        chatSessionService.deleteSession(sessionId, userId);
+        chatSessionService.deleteSession(request.getSessionId(), userId);
         return ResultUtils.success(true);
     }
 

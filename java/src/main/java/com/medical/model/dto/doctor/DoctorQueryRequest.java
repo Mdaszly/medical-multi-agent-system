@@ -27,4 +27,7 @@ public class DoctorQueryRequest {
 
     @Schema(description = "工作状态：0-休假，1-在岗，2-离职")
     private Integer workStatus;
+
+    @Schema(description = "是否仅查询在岗医生（患者端预约推荐 true）")
+    private Boolean onlineOnly;
 }

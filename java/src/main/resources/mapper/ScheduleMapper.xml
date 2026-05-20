@@ -20,6 +20,16 @@
         ORDER BY shift_type
     </select>
 
+    <select id="selectByDepartmentAndDateRange" resultType="com.medical.model.entity.Schedule">
+        SELECT * FROM schedule
+        WHERE department = #{department}
+          AND schedule_date &gt;= #{startDate}
+          AND schedule_date &lt;= #{endDate}
+          AND status = 1
+          AND is_delete = 0
+        ORDER BY schedule_date, shift_type
+    </select>
+
     <select id="selectOnDutyDoctors" resultType="com.medical.model.entity.Schedule">
         SELECT * FROM schedule
         <where>

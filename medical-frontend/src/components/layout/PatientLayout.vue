@@ -9,7 +9,7 @@ const authStore = useAuthStore()
 
 const menuItems = [
   { path: '/patient/home', title: '首页', icon: House },
-  { path: '/patient/doctors', title: '医生列表', icon: User },
+  { path: '/patient/doctors', title: '预约挂号', icon: OfficeBuilding },
   { path: '/patient/my-appointments', title: '我的预约', icon: Document },
   { path: '/patient/consult', title: '线上问诊', icon: ChatDotRound },
   { path: '/patient/prescriptions', title: '我的处方', icon: Document },

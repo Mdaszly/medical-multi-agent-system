@@ -5,7 +5,7 @@ import { Calendar, Document } from '@element-plus/icons-vue'
 const router = useRouter()
 
 const quickActions = [
-  { title: '预约挂号', icon: Calendar, path: '/patient/doctors', description: '选择医生进行预约' },
+  { title: '预约挂号', icon: Calendar, path: '/patient/doctors', description: '先选科室，再选医生与号源' },
   { title: '我的预约', icon: Document, path: '/patient/my-appointments', description: '查看和管理预约记录' }
 ]
 </script>

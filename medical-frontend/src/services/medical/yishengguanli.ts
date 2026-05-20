@@ -100,6 +100,14 @@ export async function listDoctorPage(
   });
 }
 
+/** 查询可预约科室 GET /api/doctor/list/departments */
+export async function listDepartments(options?: { [key: string]: any }) {
+  return request<API.BaseResponseListString>("/api/doctor/list/departments", {
+    method: "GET",
+    ...(options || {}),
+  });
+}
+
 /** 按科室查询医生 查询指定科室的在岗医生列表 GET /api/doctor/list/department */
 export async function listDoctorByDepartment(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)

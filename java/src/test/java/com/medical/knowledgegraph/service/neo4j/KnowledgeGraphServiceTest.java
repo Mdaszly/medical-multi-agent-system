@@ -39,7 +39,7 @@ class KnowledgeGraphServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new KnowledgeGraphService(neo4jDriver);
+        service = new KnowledgeGraphService(neo4jDriver, new DiseasePropertyEnricher());
     }
 
     @Test

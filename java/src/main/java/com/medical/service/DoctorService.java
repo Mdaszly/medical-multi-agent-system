@@ -31,4 +31,6 @@ public interface DoctorService {
     void enableDoctor(Long id);
 
     DoctorVO addDoctor(DoctorUpdateRequest request);
+
+    List<String> listDepartments();
 }

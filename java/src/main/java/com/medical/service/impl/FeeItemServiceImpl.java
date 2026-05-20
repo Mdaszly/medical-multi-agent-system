@@ -138,4 +138,15 @@ public class FeeItemServiceImpl implements FeeItemService {
         feeItemMapper.markAsSettled(ids);
         log.info("标记费用项已结算: count={}", ids.size());
     }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteByPrescriptionId(Long prescriptionId) {
+        ThrowUtils.throwIf(prescriptionId == null || prescriptionId <= 0, ErrorCode.PARAM_ERROR, "处方ID无效");
+        
+        LambdaQueryWrapper<FeeItem> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(FeeItem::getPrescriptionId, prescriptionId);
+        feeItemMapper.delete(wrapper);
+        log.info("删除处方费用项: prescriptionId={}", prescriptionId);
+    }
 }

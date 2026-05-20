@@ -8,6 +8,7 @@ export const getHomeRoute = (role: string) => {
     user: "/patient/home",
     doctor: "/doctor/dashboard",
     admin: "/admin/dashboard",
+    pharmacist: "/pharmacist/dashboard",
   };
   return roleHomeMap[role] || "/auth/login";
 };
@@ -53,21 +54,25 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: "doctors",
-        name: "Doctors",
-        component: () => import("@/views/patient/Doctors.vue"),
-        meta: { title: "医生列表" },
+        name: "DepartmentSelect",
+        component: () => import("@/views/patient/DepartmentSelect.vue"),
+        meta: { title: "选择科室" },
+      },
+      {
+        path: "department/:department/doctors",
+        name: "DepartmentDoctors",
+        component: () => import("@/views/patient/DepartmentDoctors.vue"),
+        meta: { title: "科室医生" },
       },
       {
         path: "doctor/:id",
         name: "DoctorDetail",
         component: () => import("@/views/patient/DoctorDetail.vue"),
-        meta: { title: "医生详情" },
+        meta: { title: "医生主页" },
       },
       {
         path: "booking/:doctorId",
-        name: "Booking",
-        component: () => import("@/views/patient/Booking.vue"),
-        meta: { title: "预约挂号" },
+        redirect: (to) => ({ name: "DoctorDetail", params: { id: to.params.doctorId } }),
       },
       {
         path: "my-appointments",
@@ -80,6 +85,12 @@ const routes: RouteRecordRaw[] = [
         name: "Prescriptions",
         component: () => import("@/views/patient/Prescriptions.vue"),
         meta: { title: "我的处方" },
+      },
+      {
+        path: "prescription/:id",
+        name: "PatientPrescriptionDetail",
+        component: () => import("@/views/patient/PrescriptionDetail.vue"),
+        meta: { title: "处方详情" },
       },
       {
         path: "payments",
@@ -186,10 +197,50 @@ const routes: RouteRecordRaw[] = [
         meta: { title: "预约管理" },
       },
       {
+        path: "prescriptions",
+        name: "AdminPrescriptions",
+        component: () => import("@/views/admin/PrescriptionManagement.vue"),
+        meta: { title: "处方管理" },
+      },
+      {
+        path: "prescription/:id",
+        name: "AdminPrescriptionDetail",
+        component: () => import("@/views/admin/PrescriptionDetail.vue"),
+        meta: { title: "处方详情" },
+      },
+      {
         path: "knowledge-graph",
         name: "KnowledgeGraph",
         component: () => import("@/views/knowledge-graph/Index.vue"),
         meta: { title: "知识图谱" },
+      },
+    ],
+  },
+
+  // 药师端路由
+  {
+    path: "/pharmacist",
+    redirect: "/pharmacist/dashboard",
+    meta: { requiresAuth: true, roles: ["pharmacist"] },
+    component: () => import("@/components/layout/PharmacistLayout.vue"),
+    children: [
+      {
+        path: "dashboard",
+        name: "PharmacistDashboard",
+        component: () => import("@/views/pharmacist/Dashboard.vue"),
+        meta: { title: "工作台" },
+      },
+      {
+        path: "pending",
+        name: "PharmacistPending",
+        component: () => import("@/views/pharmacist/PendingDispense.vue"),
+        meta: { title: "待发药" },
+      },
+      {
+        path: "prescription/:id",
+        name: "PharmacistPrescriptionDetail",
+        component: () => import("@/views/pharmacist/PrescriptionDetail.vue"),
+        meta: { title: "处方详情" },
       },
     ],
   },

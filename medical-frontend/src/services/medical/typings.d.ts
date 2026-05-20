@@ -371,6 +371,47 @@ declare namespace API {
     message?: string;
   };
 
+  type BaseResponseListString = {
+    code?: number;
+    data?: string[];
+    message?: string;
+  };
+
+  type DepartmentDateStatusVO = {
+    scheduleDate?: string;
+    weekDayLabel?: string;
+    dayOfMonth?: number;
+    hasAvailable?: boolean;
+    allFull?: boolean;
+  };
+
+  type BaseResponseListDepartmentDateStatusVO = {
+    code?: number;
+    data?: DepartmentDateStatusVO[];
+    message?: string;
+  };
+
+  type DepartmentDoctorBookingVO = {
+    doctorId?: number;
+    doctorName?: string;
+    title?: string;
+    specialty?: string;
+    description?: string;
+    consultationFee?: number;
+    morningRemaining?: number;
+    afternoonRemaining?: number;
+    eveningRemaining?: number;
+    totalRemaining?: number;
+    bookable?: boolean;
+    hasSchedule?: boolean;
+  };
+
+  type BaseResponseListDepartmentDoctorBookingVO = {
+    code?: number;
+    data?: DepartmentDoctorBookingVO[];
+    message?: string;
+  };
+
   type BaseResponseMapStringObject = {
     code?: number;
     data?: Record<string, any>;

@@ -238,7 +238,7 @@ public class DataImportService {
                     config != null ? config.getEncoding() : null,
                     rowData -> {
                         Disease disease = mapToDisease(rowData);
-                        knowledgeGraphService.createNode(disease);
+                        knowledgeGraphService.upsertNode(disease, "name");
                     }
             );
             updateTaskFromStats(task, stats);
@@ -247,7 +247,7 @@ public class DataImportService {
                     filePath,
                     data -> {
                         Disease disease = mapToDiseaseFromMap(data);
-                        knowledgeGraphService.createNode(disease);
+                        knowledgeGraphService.upsertNode(disease, "name");
                     }
             );
             updateTaskFromStats(task, stats);

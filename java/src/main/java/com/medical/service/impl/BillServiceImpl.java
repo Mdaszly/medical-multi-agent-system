@@ -66,6 +66,13 @@ public class BillServiceImpl implements BillService {
         Appointment appointment = appointmentMapper.selectById(appointmentId);
         ThrowUtils.throwIf(appointment == null, ErrorCode.PARAM_ERROR, "预约不存在");
 
+        // 检查该预约是否已存在账单
+        Bill existingBill = billMapper.selectByAppointmentId(appointmentId);
+        if (existingBill != null) {
+            log.warn("该预约已存在账单: appointmentId={}, billNo={}", appointmentId, existingBill.getBillNo());
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "该预约已存在账单");
+        }
+
         // 查询该预约下所有未结算的费用项
         // 费用项来源：处方药品费用、诊疗费用等
         List<FeeItem> unsettledItems = feeItemMapper.selectUnsettledByAppointmentId(appointmentId);

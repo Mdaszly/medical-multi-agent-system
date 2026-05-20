@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.medical.model.dto.prescription.PrescriptionAddRequest;
 import com.medical.model.dto.prescription.PrescriptionQueryRequest;
 import com.medical.model.dto.prescription.PrescriptionStatusUpdateRequest;
+import com.medical.model.dto.prescription.PrescriptionUpdateRequest;
 import com.medical.model.vo.PrescriptionVO;
 
 import java.util.List;
@@ -36,4 +37,12 @@ public interface PrescriptionService {
     void dispensePrescription(Long prescriptionId);
 
     void cancelPrescription(Long prescriptionId);
+
+    /**
+     * 修改处方
+     *
+     * @param request 修改请求
+     * @return 修改后的处方VO
+     */
+    PrescriptionVO updatePrescription(PrescriptionUpdateRequest request);
 }
