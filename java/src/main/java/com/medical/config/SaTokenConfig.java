@@ -16,7 +16,7 @@ public class SaTokenConfig implements WebMvcConfigurer {
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(new SaInterceptor(handle -> {
             SaRouter.match("/api/**")
-                    .notMatch("/api/auth/register", "/api/auth/login", "/api/auth/logout")
+                    .notMatch("/api/auth/register", "/api/auth/register/admin", "/api/auth/login", "/api/auth/logout")
                     // ========================================
                     // TEMPORARY: Exclude temp endpoints - [TEMP-20260513]
                     // DELETE BY: 2026-06-13

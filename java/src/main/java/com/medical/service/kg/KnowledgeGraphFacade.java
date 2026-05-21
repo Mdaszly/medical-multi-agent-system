@@ -6,8 +6,12 @@ import com.medical.knowledgegraph.service.extraction.EntityExtractionService;
 import com.medical.knowledgegraph.service.neo4j.KnowledgeGraphService;
 import com.medical.knowledgegraph.model.entity.Symptom;
 import com.medical.model.kg.GraphEvidence;
+import com.medical.service.kg.symptom.SymptomMatch;
+import com.medical.service.kg.symptom.SymptomResolutionResult;
+import com.medical.service.kg.symptom.SymptomResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -29,9 +33,14 @@ public class KnowledgeGraphFacade {
     private final EntityExtractionService entityExtractionService;
     private final MedicalGraphProperties graphProperties;
 
+    @Autowired(required = false)
+    private SymptomResolver symptomResolver;
+
     public GraphEvidence extractAndQuery(String rawText) {
         long start = System.currentTimeMillis();
-        Set<String> symptomNames = extractSymptomNames(rawText);
+        SymptomResolutionResult resolution = resolveSymptoms(rawText);
+        Set<String> symptomNames = new LinkedHashSet<>(resolution.getCanonicalSymptomNames());
+        symptomNames.addAll(extractSymptomNamesLegacy(rawText));
         List<SymptomDiagnosisRow> allRows = new ArrayList<>();
         Set<String> icdCodes = new LinkedHashSet<>();
 
@@ -58,9 +67,18 @@ public class KnowledgeGraphFacade {
                 .icdCandidateCodes(icdCodes)
                 .graphHit(!allRows.isEmpty())
                 .queryTimeMs(System.currentTimeMillis() - start)
+                .symptomMatches(resolution.getMatches())
+                .symptomResolutionTrace(resolution.getTraceSummary())
                 .build();
         evidence.setFormattedText(formatEvidenceText(evidence));
         return evidence;
+    }
+
+    private SymptomResolutionResult resolveSymptoms(String rawText) {
+        if (symptomResolver != null && symptomResolver.isEnabled()) {
+            return symptomResolver.resolve(rawText);
+        }
+        return SymptomResolutionResult.builder().build();
     }
 
     public List<SymptomDiagnosisRow> queryBySymptomName(String symptomName) {
@@ -101,10 +119,24 @@ public class KnowledgeGraphFacade {
 
     public String formatEvidenceText(GraphEvidence evidence) {
         if (evidence == null || evidence.getRows() == null || evidence.getRows().isEmpty()) {
+            String trace = evidence != null && StringUtils.hasText(evidence.getSymptomResolutionTrace())
+                    ? "（语义解析: " + evidence.getSymptomResolutionTrace() + "）"
+                    : "";
             return "【知识图谱检索结果】未命中相关症状-疾病-ICD 关联。请勿编造 ICD 编码；"
-                    + "请在 reasoning 中说明「图谱未命中」。";
+                    + "请在 reasoning 中说明「图谱未命中」。" + trace;
         }
         StringBuilder sb = new StringBuilder();
+        if (evidence.getSymptomMatches() != null && !evidence.getSymptomMatches().isEmpty()) {
+            sb.append("【症状语义解析】\n");
+            for (SymptomMatch match : evidence.getSymptomMatches()) {
+                sb.append("- ").append(match.getUserPhrase())
+                        .append(" → ").append(match.getCanonicalName())
+                        .append(" (").append(match.getMethod())
+                        .append(", 置信度=").append(String.format("%.2f", match.getConfidence()))
+                        .append(")\n");
+            }
+            sb.append("\n");
+        }
         sb.append("【知识图谱检索结果 - ICD 编码必须来自下表，不得编造】\n");
         int i = 1;
         for (SymptomDiagnosisRow row : evidence.getRows()) {
@@ -140,7 +172,7 @@ public class KnowledgeGraphFacade {
                 .orElse("图谱中未找到 ICD: " + code);
     }
 
-    private Set<String> extractSymptomNames(String rawText) {
+    private Set<String> extractSymptomNamesLegacy(String rawText) {
         Set<String> names = new LinkedHashSet<>();
         if (!StringUtils.hasText(rawText)) {
             return names;

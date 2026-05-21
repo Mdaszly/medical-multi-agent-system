@@ -112,6 +112,7 @@ public class AdminServiceImpl implements AdminService {
         admin.setSalt(salt);
         admin.setUserName(request.getUserName());
         admin.setUserRole(UserConstant.ADMIN_ROLE);
+        admin.setAdminAccountType(UserConstant.ADMIN_TYPE_FORMAL);
         
         if (request.getPhone() != null) {
             validatePhone(request.getPhone());

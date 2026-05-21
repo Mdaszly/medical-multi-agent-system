@@ -38,6 +38,10 @@ public class AppointmentVO {
 
     private String statusText;
 
+    private String diagnosis;
+
+    private Long prescriptionId;
+
     private LocalDateTime checkInTime;
 
     private Boolean checkInStatus;
@@ -71,6 +75,8 @@ public class AppointmentVO {
         vo.setConsultationFee(appointment.getConsultationFee());
         vo.setStatus(appointment.getStatus());
         vo.setStatusText(getStatusText(appointment.getStatus()));
+        vo.setDiagnosis(appointment.getDiagnosis());
+        vo.setPrescriptionId(appointment.getPrescriptionId());
         vo.setCheckInTime(appointment.getCheckInTime());
         vo.setCheckInStatus(appointment.getCheckInStatus());
         vo.setCancelTime(appointment.getCancelTime());

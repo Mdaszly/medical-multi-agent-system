@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.medical.common.ErrorCode;
 import com.medical.common.RedisCacheUtil;
+import com.medical.constant.AppointmentConstant;
 import com.medical.constant.RedisKeyConstant;
 import com.medical.exception.BusinessException;
 import com.medical.exception.ThrowUtils;
@@ -27,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
+import java.io.FileWriter;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
@@ -34,6 +36,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -82,6 +85,39 @@ public class BillServiceImpl implements BillService {
 
         // 创建账单
         return createBill(appointment.getUserId(), appointmentId, unsettledItems);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public BillVO generateOrRefreshBill(Long appointmentId) {
+        log.info("生成或刷新账单: appointmentId={}", appointmentId);
+
+        Appointment appointment = appointmentMapper.selectById(appointmentId);
+        ThrowUtils.throwIf(appointment == null, ErrorCode.PARAM_ERROR, "预约不存在");
+
+        Bill existingBill = billMapper.selectByAppointmentId(appointmentId);
+        if (existingBill == null) {
+            return generateBill(appointmentId);
+        }
+
+        if (!STATUS_UNPAID.equals(existingBill.getStatus())) {
+            log.info("预约账单已结算，跳过刷新: appointmentId={}, billNo={}, status={}",
+                    appointmentId, existingBill.getBillNo(), existingBill.getStatus());
+            return buildBillVO(existingBill);
+        }
+
+        List<FeeItem> unsettledItems = feeItemMapper.selectUnsettledByAppointmentId(appointmentId);
+        if (!CollectionUtils.isEmpty(unsettledItems)) {
+            List<Long> feeItemIds = unsettledItems.stream().map(FeeItem::getId).collect(Collectors.toList());
+            feeItemService.updateBillId(feeItemIds, existingBill.getId());
+            recalculateBillTotals(existingBill);
+            existingBill.setUpdateTime(LocalDateTime.now());
+            billMapper.updateById(existingBill);
+            deleteBillCache(existingBill.getId(), existingBill.getBillNo(), existingBill.getUserId());
+            log.info("待支付账单已合并新费用项: billNo={}, itemCount={}", existingBill.getBillNo(), unsettledItems.size());
+        }
+
+        return buildBillVO(existingBill);
     }
 
     @Override
@@ -291,6 +327,7 @@ public class BillServiceImpl implements BillService {
         }
 
         deleteBillCache(billId, bill.getBillNo(), bill.getUserId());
+        settleAppointmentAfterBillPaid(bill);
         log.info("账单支付成功: billId={}, amount={}", billId, amount);
     }
 
@@ -322,8 +359,39 @@ public class BillServiceImpl implements BillService {
         // 删除相关缓存
         Bill bill = getBillEntityById(billId);
         deleteBillCache(billId, bill.getBillNo(), bill.getUserId());
-        
+        settleAppointmentAfterBillPaid(bill);
+
         log.info("账单支付成功（乐观锁）: billId={}, amount={}", billId, amount);
+    }
+
+    /**
+     * 账单支付成功后，将关联预约置为已结算（就诊结束）
+     */
+    private void settleAppointmentAfterBillPaid(Bill bill) {
+        if (bill == null || bill.getAppointmentId() == null) {
+            return;
+        }
+        Appointment appointment = appointmentMapper.selectById(bill.getAppointmentId());
+        if (appointment == null) {
+            return;
+        }
+        Integer oldStatus = appointment.getStatus();
+        if (AppointmentConstant.APPOINTMENT_STATUS_SETTLED.equals(oldStatus)
+                || AppointmentConstant.APPOINTMENT_STATUS_CANCELLED.equals(oldStatus)
+                || AppointmentConstant.APPOINTMENT_STATUS_EXPIRED.equals(oldStatus)) {
+            return;
+        }
+        appointment.setStatus(AppointmentConstant.APPOINTMENT_STATUS_SETTLED);
+        appointment.setUpdateTime(LocalDateTime.now());
+        appointmentMapper.updateById(appointment);
+        // #region agent log
+        agentDebugLog("D", "BillServiceImpl.settleAppointmentAfterBillPaid",
+                "appointment settled after bill paid",
+                Map.of("appointmentId", appointment.getId(), "billId", bill.getId(),
+                        "oldStatus", oldStatus != null ? oldStatus : -1,
+                        "newStatus", AppointmentConstant.APPOINTMENT_STATUS_SETTLED));
+        // #endregion
+        log.info("账单支付后预约已结算: appointmentId={}, billId={}", appointment.getId(), bill.getId());
     }
 
     @Override
@@ -391,6 +459,26 @@ public class BillServiceImpl implements BillService {
         return buildBillVO(bill, feeItems);
     }
 
+    private void recalculateBillTotals(Bill bill) {
+        List<FeeItem> feeItems = feeItemMapper.selectByBillId(bill.getId());
+        BigDecimal totalAmount = BigDecimal.ZERO;
+        BigDecimal discountAmount = BigDecimal.ZERO;
+        BigDecimal insuranceAmount = BigDecimal.ZERO;
+        BigDecimal selfPayAmount = BigDecimal.ZERO;
+
+        for (FeeItem item : feeItems) {
+            totalAmount = totalAmount.add(item.getTotalAmount() != null ? item.getTotalAmount() : BigDecimal.ZERO);
+            discountAmount = discountAmount.add(item.getDiscountAmount() != null ? item.getDiscountAmount() : BigDecimal.ZERO);
+            insuranceAmount = insuranceAmount.add(item.getInsuranceAmount() != null ? item.getInsuranceAmount() : BigDecimal.ZERO);
+            selfPayAmount = selfPayAmount.add(item.getSelfPayAmount() != null ? item.getSelfPayAmount() : BigDecimal.ZERO);
+        }
+
+        bill.setTotalAmount(totalAmount.setScale(2, RoundingMode.HALF_UP));
+        bill.setDiscountAmount(discountAmount.setScale(2, RoundingMode.HALF_UP));
+        bill.setInsuranceAmount(insuranceAmount.setScale(2, RoundingMode.HALF_UP));
+        bill.setSelfPayAmount(selfPayAmount.setScale(2, RoundingMode.HALF_UP));
+    }
+
     private BillVO buildBillVO(Bill bill, List<FeeItem> feeItems) {
         BillVO vo = BillVO.fromEntity(bill);
         if (!CollectionUtils.isEmpty(feeItems)) {
@@ -416,4 +504,31 @@ public class BillServiceImpl implements BillService {
         String uuid = UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         return BILL_NO_PREFIX + dateStr + uuid;
     }
+
+    // #region agent log
+    private void agentDebugLog(String hypothesisId, String location, String message, Map<String, Object> data) {
+        try (FileWriter fw = new FileWriter("debug-19e237.log", true)) {
+            StringBuilder dataJson = new StringBuilder("{");
+            boolean first = true;
+            for (Map.Entry<String, Object> e : data.entrySet()) {
+                if (!first) dataJson.append(",");
+                first = false;
+                dataJson.append("\"").append(e.getKey()).append("\":");
+                Object v = e.getValue();
+                if (v == null) {
+                    dataJson.append("null");
+                } else if (v instanceof Number || v instanceof Boolean) {
+                    dataJson.append(v);
+                } else {
+                    dataJson.append("\"").append(String.valueOf(v).replace("\"", "\\\"")).append("\"");
+                }
+            }
+            dataJson.append("}");
+            fw.write("{\"sessionId\":\"19e237\",\"hypothesisId\":\"" + hypothesisId
+                    + "\",\"location\":\"" + location + "\",\"message\":\"" + message
+                    + "\",\"data\":" + dataJson + ",\"timestamp\":" + System.currentTimeMillis() + "}\n");
+        } catch (Exception ignored) {
+        }
+    }
+    // #endregion
 }

@@ -8,6 +8,8 @@ import com.medical.exception.BusinessException;
 import com.medical.exception.ThrowUtils;
 import com.medical.mapper.BillMapper;
 import com.medical.mapper.PaymentMapper;
+import com.medical.mapper.UserMapper;
+import com.medical.model.entity.User;
 import com.medical.model.dto.payment.PaymentRequest;
 import com.medical.model.dto.payment.RefundRequest;
 import com.medical.model.entity.Bill;
@@ -22,6 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.io.FileWriter;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -41,6 +44,7 @@ public class PaymentServiceImpl implements PaymentService {
 
     private final PaymentMapper paymentMapper;
     private final BillMapper billMapper;
+    private final UserMapper userMapper;
     private final BillService billService;
     private final RedissonLockUtil redissonLockUtil;
 
@@ -86,7 +90,15 @@ public class PaymentServiceImpl implements PaymentService {
                .eq(Payment::getStatus, STATUS_PENDING);
         Payment existingPayment = paymentMapper.selectOne(existingWrapper);
         if (existingPayment != null) {
-            log.warn("该账单已有待支付记录: paymentNo={}, 复用该记录", existingPayment.getPaymentNo());
+            if (existingPayment.getAmount().compareTo(bill.getSelfPayAmount()) != 0) {
+                existingPayment.setAmount(bill.getSelfPayAmount());
+                existingPayment.setUpdateTime(LocalDateTime.now());
+                paymentMapper.updateById(existingPayment);
+                log.info("待支付订单金额已同步账单: paymentNo={}, amount={}",
+                        existingPayment.getPaymentNo(), bill.getSelfPayAmount());
+            } else {
+                log.info("复用已有待支付订单: paymentNo={}", existingPayment.getPaymentNo());
+            }
             return PaymentVO.fromEntity(existingPayment);
         }
 
@@ -96,12 +108,21 @@ public class PaymentServiceImpl implements PaymentService {
             paymentType = PAYMENT_TYPE_WECHAT;
         }
 
+        String userName = resolvePatientName(request.getUserName(), bill.getUserId());
+        // #region agent log
+        agentDebugLog("A", "PaymentServiceImpl.createPayment:beforeInsert",
+                "resolved userName for payment insert",
+                Map.of("billId", request.getBillId(), "billUserId", bill.getUserId(),
+                        "requestUserName", request.getUserName() != null ? request.getUserName() : "null",
+                        "resolvedUserName", userName));
+        // #endregion
+
         // 构建支付记录
         Payment payment = Payment.builder()
                 .paymentNo(generatePaymentNo())     // 生成唯一支付编号
                 .billId(request.getBillId())        // 关联账单
                 .userId(bill.getUserId())           // 患者ID
-                .userName(request.getUserName())    // 患者姓名
+                .userName(userName)                 // 患者姓名（请求未传时从用户表解析）
                 .amount(request.getAmount())        // 支付金额
                 .paymentType(paymentType)           // 支付方式
                 .status(STATUS_PENDING)             // 初始状态：待支付
@@ -206,8 +227,18 @@ public class PaymentServiceImpl implements PaymentService {
             // ✅ 乐观锁更新成功，重新查询最新的支付记录
             payment = paymentMapper.selectById(paymentId);
 
-            // 更新账单状态（使用乐观锁）
-            billService.payBillWithOptimisticLock(payment.getBillId(), payment.getAmount(), payment.getVersion());
+            // 更新账单状态（必须使用 bill.version，不能用 payment.version）
+            Bill bill = billMapper.selectById(payment.getBillId());
+            ThrowUtils.throwIf(bill == null, ErrorCode.PARAM_ERROR, "关联账单不存在");
+            int billVersion = bill.getVersion() != null ? bill.getVersion() : 0;
+            // #region agent log
+            agentDebugLog("B", "PaymentServiceImpl.simulatePayment:beforeBillPay",
+                    "bill optimistic lock versions",
+                    Map.of("billId", payment.getBillId(), "billVersion", billVersion,
+                            "paymentVersion", payment.getVersion() != null ? payment.getVersion() : -1,
+                            "billStatus", bill.getStatus() != null ? bill.getStatus() : "null"));
+            // #endregion
+            billService.payBillWithOptimisticLock(payment.getBillId(), payment.getAmount(), billVersion);
 
             log.info("模拟支付成功: paymentNo={}, thirdPartyNo={}", payment.getPaymentNo(), thirdPartyNo);
             return PaymentVO.fromEntity(payment);
@@ -285,4 +316,51 @@ public class PaymentServiceImpl implements PaymentService {
             default -> "未知";
         };
     }
+
+    private String resolvePatientName(String fromRequest, Long userId) {
+        if (StringUtils.hasText(fromRequest)) {
+            return fromRequest;
+        }
+        if (userId == null || userId <= 0) {
+            return "患者";
+        }
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            return "患者";
+        }
+        if (StringUtils.hasText(user.getUserName())) {
+            return user.getUserName();
+        }
+        if (StringUtils.hasText(user.getUserAccount())) {
+            return user.getUserAccount();
+        }
+        return "患者";
+    }
+
+    // #region agent log
+    private void agentDebugLog(String hypothesisId, String location, String message, Map<String, Object> data) {
+        try (FileWriter fw = new FileWriter("debug-19e237.log", true)) {
+            StringBuilder dataJson = new StringBuilder("{");
+            boolean first = true;
+            for (Map.Entry<String, Object> e : data.entrySet()) {
+                if (!first) dataJson.append(",");
+                first = false;
+                dataJson.append("\"").append(e.getKey()).append("\":");
+                Object v = e.getValue();
+                if (v == null) {
+                    dataJson.append("null");
+                } else if (v instanceof Number) {
+                    dataJson.append(v);
+                } else {
+                    dataJson.append("\"").append(String.valueOf(v).replace("\"", "\\\"")).append("\"");
+                }
+            }
+            dataJson.append("}");
+            fw.write("{\"sessionId\":\"19e237\",\"hypothesisId\":\"" + hypothesisId
+                    + "\",\"location\":\"" + location + "\",\"message\":\"" + message
+                    + "\",\"data\":" + dataJson + ",\"timestamp\":" + System.currentTimeMillis() + "}\n");
+        } catch (Exception ignored) {
+        }
+    }
+    // #endregion
 }

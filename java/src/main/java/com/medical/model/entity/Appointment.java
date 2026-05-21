@@ -100,6 +100,17 @@ public class Appointment {
     private Integer status;
 
     /**
+     * 诊断结果（医生开方时写入）
+     */
+    private String diagnosis;
+
+    /**
+     * 关联处方ID
+     */
+    @TableField("prescription_id")
+    private Long prescriptionId;
+
+    /**
      * 签到时间
      */
     private LocalDateTime checkInTime;
@@ -112,11 +123,13 @@ public class Appointment {
     /**
      * 取消时间
      */
+    @TableField(exist = false)
     private LocalDateTime cancelTime;
 
     /**
      * 取消原因
      */
+    @TableField(exist = false)
     private String cancelReason;
 
     /**

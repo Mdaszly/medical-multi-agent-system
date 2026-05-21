@@ -436,6 +436,38 @@ public class KnowledgeGraphService {
     }
 
     /**
+     * 列出图谱中全部标准症状（供语义索引与封闭词表使用）
+     */
+    public List<Map<String, Object>> listSymptomVocabulary() {
+        String cypher =
+                "MATCH (s:Symptom) " +
+                "RETURN s.name AS name, s.code AS code, s.description AS description, " +
+                "       s.pinyin AS pinyin, s.categoryName AS categoryName " +
+                "ORDER BY coalesce(s.frequency, 0) DESC, s.name";
+        try (Session session = neo4jDriver.session()) {
+            Result result = session.run(cypher);
+            List<Map<String, Object>> rows = new ArrayList<>();
+            while (result.hasNext()) {
+                Record record = result.next();
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("name", getString(record, "name"));
+                row.put("code", getString(record, "code"));
+                row.put("description", getString(record, "description"));
+                row.put("pinyin", getString(record, "pinyin"));
+                row.put("categoryName", getString(record, "categoryName"));
+                if (row.get("name") != null && !((String) row.get("name")).isBlank()) {
+                    rows.add(row);
+                }
+            }
+            return rows;
+        } catch (Exception e) {
+            log.error("列出症状词表失败", e);
+            throw new KnowledgeGraphException("LIST_SYMPTOM_VOCAB_ERROR",
+                    "列出症状词表失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
      * 模糊症状匹配诊断
      */
     public List<SymptomDiagnosisRow> findSymptomDiagnosesFuzzy(String keyword, int limit) {

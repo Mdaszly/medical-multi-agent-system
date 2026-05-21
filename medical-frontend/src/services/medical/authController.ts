@@ -47,3 +47,18 @@ export async function register(
     ...(options || {}),
   });
 }
+
+/** 管理员自助注册（临时账号） 通过公开接口注册临时管理员账号 POST /api/auth/register/admin */
+export async function registerAdmin(
+  body: API.AuthRegisterRequest,
+  options?: { [key: string]: any }
+) {
+  return request<API.BaseResponseAuthRegisterVO>("/api/auth/register/admin", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    data: body,
+    ...(options || {}),
+  });
+}

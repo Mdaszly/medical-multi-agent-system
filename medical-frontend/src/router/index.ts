@@ -72,7 +72,10 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: "booking/:doctorId",
-        redirect: (to) => ({ name: "DoctorDetail", params: { id: to.params.doctorId } }),
+        redirect: (to) => ({
+          name: "DoctorDetail",
+          params: { id: to.params.doctorId },
+        }),
       },
       {
         path: "my-appointments",
@@ -189,6 +192,18 @@ const routes: RouteRecordRaw[] = [
         name: "AdminSchedules",
         component: () => import("@/views/admin/ScheduleManagement.vue"),
         meta: { title: "排班管理" },
+      },
+      {
+        path: "schedule/add",
+        name: "AdminScheduleAdd",
+        component: () => import("@/views/admin/ScheduleAdd.vue"),
+        meta: { title: "新增排班" },
+      },
+      {
+        path: "slots",
+        name: "AdminSlots",
+        component: () => import("@/views/admin/SlotManagement.vue"),
+        meta: { title: "号源管理" },
       },
       {
         path: "appointments",

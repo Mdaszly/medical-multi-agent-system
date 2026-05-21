@@ -117,7 +117,23 @@ public class AuthServiceImpl implements AuthService {
                     user.getId(), userAccount, userRole);
             return buildRegisterVOForUser(user);
         } else {
+            User user = new User();
+            user.setUserAccount(userAccount);
+            user.setUserPassword(encryptedPassword);
+            user.setSalt(salt);
+            user.setUserName(request.getUserName());
+            user.setUserRole(userRole);
+            user.setPhone(request.getPhone());
+            user.setEmail(request.getEmail());
+            user.setUserStatus(UserConstant.STATUS_NORMAL);
+
+            int userResult = userMapper.insert(user);
+            if (userResult == 0) {
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "注册失败");
+            }
+
             Doctor doctor = new Doctor();
+            doctor.setUserId(user.getId());
             doctor.setDoctorNo("DOC" + System.currentTimeMillis());
             doctor.setDoctorName(request.getUserName());
             doctor.setDepartment(request.getDepartment());
@@ -132,13 +148,13 @@ public class AuthServiceImpl implements AuthService {
             doctor.setUserPassword(encryptedPassword);
             doctor.setSalt(salt);
 
-            int result = doctorMapper.insert(doctor);
-            if (result == 0) {
+            int doctorResult = doctorMapper.insert(doctor);
+            if (doctorResult == 0) {
                 throw new BusinessException(ErrorCode.SYSTEM_ERROR, "注册失败");
             }
 
-            log.info("Doctor registered successfully: id={}, account={}, name={}", 
-                    doctor.getId(), userAccount, request.getUserName());
+            log.info("Doctor registered successfully: userId={}, doctorId={}, account={}, name={}", 
+                    user.getId(), doctor.getId(), userAccount, request.getUserName());
             return buildRegisterVOForDoctor(doctor);
         }
     }
@@ -165,6 +181,72 @@ public class AuthServiceImpl implements AuthService {
 
     private String generateSalt() {
         return java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+    }
+
+    @Override
+    @Transactional
+    public AuthRegisterVO registerAdmin(AuthRegisterRequest request) {
+        String userAccount = request.getUserAccount();
+        String userPassword = request.getUserPassword();
+        String checkPassword = request.getCheckPassword();
+        String userName = request.getUserName();
+
+        if (userAccount == null || userAccount.isEmpty()) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "账号不能为空");
+        }
+        if (userPassword == null || userPassword.isEmpty()) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "密码不能为空");
+        }
+        if (checkPassword == null || checkPassword.isEmpty()) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "确认密码不能为空");
+        }
+        if (!userPassword.equals(checkPassword)) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "两次输入的密码不一致");
+        }
+        if (userName == null || userName.isEmpty()) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "姓名不能为空");
+        }
+
+        LambdaQueryWrapper<User> userWrapper = new LambdaQueryWrapper<>();
+        userWrapper.eq(User::getUserAccount, userAccount);
+        User existingUser = userMapper.selectOne(userWrapper);
+        if (existingUser != null) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "账号已存在");
+        }
+
+        String salt = generateSalt();
+        String encryptedPassword = encryptPassword(userPassword, salt);
+
+        User admin = new User();
+        admin.setUserAccount(userAccount);
+        admin.setUserPassword(encryptedPassword);
+        admin.setSalt(salt);
+        admin.setUserName(userName);
+        admin.setUserRole(UserConstant.ADMIN_ROLE);
+        admin.setAdminAccountType(UserConstant.ADMIN_TYPE_TEMPORARY);
+        admin.setUserStatus(UserConstant.STATUS_NORMAL);
+        if (request.getPhone() != null && !request.getPhone().isEmpty()) {
+            admin.setPhone(request.getPhone());
+        }
+        if (request.getEmail() != null && !request.getEmail().isEmpty()) {
+            admin.setEmail(request.getEmail());
+        }
+
+        int result = userMapper.insert(admin);
+        if (result == 0) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "注册失败");
+        }
+
+        log.info("Temporary admin registered: id={}, account={}, type=TEMPORARY",
+                admin.getId(), userAccount);
+
+        AuthRegisterVO vo = new AuthRegisterVO();
+        vo.setId(admin.getId());
+        vo.setUserAccount(admin.getUserAccount());
+        vo.setUserName(admin.getUserName());
+        vo.setUserRole(UserConstant.ADMIN_ROLE);
+        vo.setCreateTime(admin.getCreateTime());
+        return vo;
     }
 
     @Override

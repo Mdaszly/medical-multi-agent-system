@@ -22,6 +22,14 @@ public interface BillService {
     BillVO generateBill(Long appointmentId);
 
     /**
+     * 生成或刷新预约账单：无账单则新建；有待支付账单则合并未结算费用项并重算金额
+     *
+     * @param appointmentId 预约ID
+     * @return 账单VO
+     */
+    BillVO generateOrRefreshBill(Long appointmentId);
+
+    /**
      * 根据预约ID列表生成账单
      *
      * @param request 账单生成请求

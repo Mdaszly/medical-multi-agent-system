@@ -205,4 +205,89 @@ public class DashScopeService {
     public boolean isConfigured() {
         return apiKey != null && !apiKey.isBlank();
     }
+
+    /**
+     * 百炼 OpenAI 兼容模式文本向量（用于症状语义检索）
+     */
+    public float[] embed(String text, String embeddingModel) throws Exception {
+        if (!isConfigured()) {
+            throw new IllegalStateException("DashScope API key not configured");
+        }
+        if (text == null || text.isBlank()) {
+            return new float[0];
+        }
+        Map<String, Object> requestBody = Map.of(
+                "model", embeddingModel,
+                "input", text.trim()
+        );
+        String jsonBody = objectMapper.writeValueAsString(requestBody);
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(compatibleBaseUrl + "/embeddings"))
+                .timeout(Duration.ofMillis(timeoutMs))
+                .header("Authorization", "Bearer " + apiKey)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                .build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() != 200) {
+            throw new RuntimeException("DashScope embedding error (status " + response.statusCode() + "): "
+                    + response.body());
+        }
+        JsonNode root = objectMapper.readTree(response.body());
+        JsonNode data = root.path("data");
+        if (!data.isArray() || data.isEmpty()) {
+            throw new RuntimeException("DashScope embedding response missing data: " + response.body());
+        }
+        JsonNode embeddingNode = data.get(0).path("embedding");
+        if (!embeddingNode.isArray()) {
+            throw new RuntimeException("DashScope embedding response missing embedding array: " + response.body());
+        }
+        float[] vector = new float[embeddingNode.size()];
+        for (int i = 0; i < embeddingNode.size(); i++) {
+            vector[i] = (float) embeddingNode.get(i).asDouble();
+        }
+        return vector;
+    }
+
+    public List<float[]> embedBatch(List<String> texts, String embeddingModel) throws Exception {
+        if (!isConfigured()) {
+            throw new IllegalStateException("DashScope API key not configured");
+        }
+        if (texts == null || texts.isEmpty()) {
+            return List.of();
+        }
+        Map<String, Object> requestBody = Map.of(
+                "model", embeddingModel,
+                "input", texts.stream().map(String::trim).toList()
+        );
+        String jsonBody = objectMapper.writeValueAsString(requestBody);
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(compatibleBaseUrl + "/embeddings"))
+                .timeout(Duration.ofMillis(timeoutMs))
+                .header("Authorization", "Bearer " + apiKey)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                .build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() != 200) {
+            throw new RuntimeException("DashScope embedding batch error (status " + response.statusCode() + "): "
+                    + response.body());
+        }
+        JsonNode data = objectMapper.readTree(response.body()).path("data");
+        if (!data.isArray()) {
+            throw new RuntimeException("DashScope embedding batch response missing data: " + response.body());
+        }
+        List<float[]> vectors = new java.util.ArrayList<>();
+        for (JsonNode item : data) {
+            JsonNode embeddingNode = item.path("embedding");
+            float[] vector = new float[embeddingNode.size()];
+            for (int i = 0; i < embeddingNode.size(); i++) {
+                vector[i] = (float) embeddingNode.get(i).asDouble();
+            }
+            vectors.add(vector);
+        }
+        return vectors;
+    }
 }

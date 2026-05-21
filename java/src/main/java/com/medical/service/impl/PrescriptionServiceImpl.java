@@ -11,6 +11,7 @@ import com.medical.constant.PrescriptionConstant;
 import com.medical.exception.BusinessException;
 import com.medical.exception.ThrowUtils;
 import com.medical.mapper.*;
+import com.medical.model.dto.payment.PaymentRequest;
 import com.medical.model.dto.prescription.PrescriptionAddRequest;
 import com.medical.model.dto.prescription.PrescriptionQueryRequest;
 import com.medical.model.dto.prescription.PrescriptionStatusUpdateRequest;
@@ -21,6 +22,7 @@ import com.medical.service.AppointmentService;
 import com.medical.service.BillService;
 import com.medical.service.DrugService;
 import com.medical.service.FeeItemService;
+import com.medical.service.PaymentService;
 import com.medical.service.PrescriptionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -29,12 +31,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.io.FileWriter;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -52,18 +56,24 @@ public class PrescriptionServiceImpl implements PrescriptionService {
     private final FeeItemService feeItemService;
     private final BillService billService;
     private final AppointmentService appointmentService;
+    private final PaymentService paymentService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public PrescriptionVO createPrescription(PrescriptionAddRequest request) {
-        // 获取当前登录医生ID
-        Long doctorId = StpUtil.getLoginIdAsLong();
+        // 获取当前登录用户ID
+        Long userId = StpUtil.getLoginIdAsLong();
         Long appointmentId = request.getAppointmentId();
 
         // 参数校验
         ThrowUtils.throwIf(appointmentId == null || appointmentId <= 0, ErrorCode.PARAM_ERROR, "预约ID无效");
         ThrowUtils.throwIf(request.getDrugs() == null || request.getDrugs().isEmpty(), ErrorCode.PARAM_ERROR, "药品列表不能为空");
+
+        // 根据用户ID获取医生信息
+        Doctor doctor = doctorMapper.selectByUserId(userId);
+        ThrowUtils.throwIf(doctor == null, ErrorCode.PARAM_ERROR, "医生不存在");
+        Long doctorId = doctor.getId();
 
         // 步骤1：验证预约信息
         Appointment appointment = appointmentMapper.selectById(appointmentId);
@@ -81,10 +91,6 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         User user = userMapper.selectById(appointment.getUserId());
         ThrowUtils.throwIf(user == null, ErrorCode.USER_NOT_FOUND, "患者不存在");
 
-        // 步骤3：验证医生信息
-        Doctor doctor = doctorMapper.selectById(doctorId);
-        ThrowUtils.throwIf(doctor == null, ErrorCode.PARAM_ERROR, "医生不存在");
-
         // 步骤4：构建处方主记录
         Prescription prescription = new Prescription();
         prescription.setPrescriptionNo(generatePrescriptionNo());  // 生成唯一处方编号
@@ -95,7 +101,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         prescription.setDoctorName(doctor.getDoctorName());
         prescription.setDepartment(doctor.getDepartment());
         prescription.setDiagnosis(request.getDiagnosis());  // 诊断信息
-        prescription.setStatus(PrescriptionConstant.PRESCRIPTION_STATUS_PENDING);  // 医生开具后需审核
+        prescription.setStatus(PrescriptionConstant.PRESCRIPTION_STATUS_AUDITED);  // 医生开具后直接进入待发药状态
         prescription.setRemark(request.getRemark());
 
         // 步骤5：处理药品明细，计算总金额
@@ -155,13 +161,20 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         // 步骤8：自动生成费用项（用于后续结算）
         createFeeItems(prescription, items);
 
-        // 步骤9：更新预约状态为"诊疗中"
-        try {
-            appointmentService.updateAppointmentStatus(appointmentId, AppointmentConstant.APPOINTMENT_STATUS_IN_CONSULTATION);
-            log.info("处方创建后更新预约状态为诊疗中: appointmentId={}", appointmentId);
-        } catch (Exception e) {
-            log.warn("更新预约状态失败: appointmentId={}, error={}", appointmentId, e.getMessage());
-        }
+        // 步骤9：同步诊断信息并更新预约为诊疗中
+        appointment.setDiagnosis(request.getDiagnosis());
+        appointment.setPrescriptionId(prescription.getId());
+        appointment.setStatus(AppointmentConstant.APPOINTMENT_STATUS_IN_CONSULTATION);
+        appointment.setUpdateTime(LocalDateTime.now());
+        appointmentMapper.updateById(appointment);
+        // #region agent log
+        agentDebugLog("C", "PrescriptionServiceImpl.createPrescription:afterAppointmentSync",
+                "appointment diagnosis synced",
+                Map.of("appointmentId", appointmentId, "prescriptionId", prescription.getId(),
+                        "hasDiagnosis", StringUtils.hasText(request.getDiagnosis()),
+                        "status", AppointmentConstant.APPOINTMENT_STATUS_IN_CONSULTATION));
+        // #endregion
+        log.info("处方创建后已同步预约诊断: appointmentId={}, prescriptionId={}", appointmentId, prescription.getId());
 
         log.info("处方创建成功: prescriptionNo={}", prescription.getPrescriptionNo());
 
@@ -277,11 +290,21 @@ public class PrescriptionServiceImpl implements PrescriptionService {
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public void generateBillAfterDispense(Long prescriptionId, Long appointmentId) {
         try {
-            billService.generateBill(appointmentId);
-            log.info("发药后自动生成账单成功: prescriptionId={}, appointmentId={}", 
-                    prescriptionId, appointmentId);
+            com.medical.model.vo.BillVO bill = billService.generateOrRefreshBill(appointmentId);
+            log.info("发药后账单就绪: prescriptionId={}, appointmentId={}, billNo={}, status={}",
+                    prescriptionId, appointmentId, bill.getBillNo(), bill.getStatus());
+
+            if ("UNPAID".equals(bill.getStatus()) && bill.getSelfPayAmount() != null
+                    && bill.getSelfPayAmount().compareTo(BigDecimal.ZERO) > 0) {
+                PaymentRequest paymentRequest = new PaymentRequest();
+                paymentRequest.setBillId(bill.getId());
+                paymentRequest.setAmount(bill.getSelfPayAmount());
+                paymentRequest.setPaymentType("WECHAT");
+                paymentService.createPayment(paymentRequest);
+                log.info("发药后待支付订单已就绪: billId={}", bill.getId());
+            }
         } catch (Exception e) {
-            log.warn("发药后自动生成账单失败: prescriptionId={}, appointmentId={}, error={}", 
+            log.warn("发药后自动生成账单或支付记录失败: prescriptionId={}, appointmentId={}, error={}",
                     prescriptionId, appointmentId, e.getMessage());
         }
     }
@@ -448,4 +471,31 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         String uuid = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
         return "FEE" + dateStr + uuid;
     }
+
+    // #region agent log
+    private void agentDebugLog(String hypothesisId, String location, String message, Map<String, Object> data) {
+        try (FileWriter fw = new FileWriter("debug-19e237.log", true)) {
+            StringBuilder dataJson = new StringBuilder("{");
+            boolean first = true;
+            for (Map.Entry<String, Object> e : data.entrySet()) {
+                if (!first) dataJson.append(",");
+                first = false;
+                dataJson.append("\"").append(e.getKey()).append("\":");
+                Object v = e.getValue();
+                if (v == null) {
+                    dataJson.append("null");
+                } else if (v instanceof Number || v instanceof Boolean) {
+                    dataJson.append(v);
+                } else {
+                    dataJson.append("\"").append(String.valueOf(v).replace("\"", "\\\"")).append("\"");
+                }
+            }
+            dataJson.append("}");
+            fw.write("{\"sessionId\":\"19e237\",\"hypothesisId\":\"" + hypothesisId
+                    + "\",\"location\":\"" + location + "\",\"message\":\"" + message
+                    + "\",\"data\":" + dataJson + ",\"timestamp\":" + System.currentTimeMillis() + "}\n");
+        } catch (Exception ignored) {
+        }
+    }
+    // #endregion
 }

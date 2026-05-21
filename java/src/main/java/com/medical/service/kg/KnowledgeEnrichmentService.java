@@ -21,6 +21,8 @@ public class KnowledgeEnrichmentService {
 
     public static final String EXT_TOOL_CONTEXT = "toolContext";
     public static final String EXT_GRAPH_EVIDENCE = "graphEvidence";
+    public static final String EXT_GRAPH_HIT = "graphHit";
+    public static final String EXT_GRAPH_DETAIL = "graphEvidenceDetail";
     public static final String EXT_ICD_CANDIDATES = "icdCandidateCodes";
     public static final String EXT_GROUNDING_STATUS = "groundingStatus";
 
@@ -49,6 +51,8 @@ public class KnowledgeEnrichmentService {
     private void applyToState(ClinicalState state, GraphEvidence evidence, MedicalAgentType agentType) {
         appendToolContext(state, evidence.getFormattedText());
         state.getExtensions().put(EXT_GRAPH_EVIDENCE, evidence.getRows());
+        state.getExtensions().put(EXT_GRAPH_HIT, evidence.isGraphHit());
+        state.getExtensions().put(EXT_GRAPH_DETAIL, evidence);
         state.getExtensions().put(EXT_ICD_CANDIDATES, new ArrayList<>(evidence.getIcdCandidateCodes()));
         if (!evidence.isGraphHit()) {
             state.getExtensions().put(EXT_GROUNDING_STATUS, "NO_HIT");

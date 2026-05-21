@@ -4,13 +4,18 @@ import com.medical.config.MedicalGraphProperties;
 import com.medical.knowledgegraph.model.dto.SymptomDiagnosisRow;
 import com.medical.knowledgegraph.service.extraction.EntityExtractionService;
 import com.medical.knowledgegraph.service.neo4j.KnowledgeGraphService;
+import com.medical.service.kg.symptom.SymptomMatch;
+import com.medical.service.kg.symptom.SymptomResolutionResult;
+import com.medical.service.kg.symptom.SymptomResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -25,6 +30,9 @@ class KnowledgeGraphFacadeTest {
     @Mock
     private EntityExtractionService entityExtractionService;
 
+    @Mock
+    private SymptomResolver symptomResolver;
+
     private KnowledgeGraphFacade facade;
 
     @BeforeEach
@@ -33,10 +41,22 @@ class KnowledgeGraphFacadeTest {
         props.setEnabled(true);
         props.setFuzzySymptomLimit(5);
         facade = new KnowledgeGraphFacade(knowledgeGraphService, entityExtractionService, props);
+        ReflectionTestUtils.setField(facade, "symptomResolver", symptomResolver);
+        when(symptomResolver.isEnabled()).thenReturn(true);
     }
 
     @Test
     void extractAndQuery_headache_containsG43() {
+        when(symptomResolver.resolve(anyString())).thenReturn(
+                SymptomResolutionResult.builder()
+                        .canonicalSymptomNames(Set.of("头痛"))
+                        .matches(List.of(SymptomMatch.builder()
+                                .userPhrase("头痛")
+                                .canonicalName("头痛")
+                                .confidence(1.0)
+                                .method("RULE")
+                                .build()))
+                        .build());
         when(entityExtractionService.extractSymptoms(anyString())).thenReturn(List.of());
         when(knowledgeGraphService.findSymptomDiagnosesRows("头痛")).thenReturn(List.of(
                 SymptomDiagnosisRow.builder()

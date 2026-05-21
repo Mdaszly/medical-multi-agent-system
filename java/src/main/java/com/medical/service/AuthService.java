@@ -9,6 +9,8 @@ public interface AuthService {
 
     AuthRegisterVO register(AuthRegisterRequest request);
 
+    AuthRegisterVO registerAdmin(AuthRegisterRequest request);
+
     AuthLoginVO login(AuthLoginRequest request);
 
     void logout();

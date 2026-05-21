@@ -21,6 +21,7 @@ import org.springframework.util.StringUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -163,13 +164,24 @@ public class SlotServiceImpl implements SlotService {
         Schedule schedule = scheduleMapper.selectById(scheduleId);
         ThrowUtils.throwIf(schedule == null, ErrorCode.PARAM_ERROR, "排班不存在");
 
+        List<AppointmentSlot> existingSlots = slotMapper.selectByScheduleId(scheduleId);
+        Set<String> existingTimeSlots = existingSlots.stream()
+                .map(AppointmentSlot::getTimeSlot)
+                .collect(Collectors.toSet());
+
         List<AppointmentSlot> slots = new ArrayList<>();
         List<String> timeList = getTimeSlotsByShiftType(schedule.getShiftType());
 
+        int createdCount = 0;
         for (int i = 0; i < timeList.size(); i++) {
             String timeStart = timeList.get(i);
             String timeEnd = timeList.get(i + 1);
             String timeSlot = timeStart + "-" + timeEnd;
+
+            if (existingTimeSlots.contains(timeSlot)) {
+                log.debug("号源已存在，跳过: scheduleId={}, timeSlot={}", scheduleId, timeSlot);
+                continue;
+            }
 
             AppointmentSlot slot = new AppointmentSlot();
             slot.setScheduleId(scheduleId);
@@ -184,6 +196,7 @@ public class SlotServiceImpl implements SlotService {
             slot.setStatus(AppointmentConstant.SLOT_STATUS_AVAILABLE);
             slot.setVersion(0);
             slots.add(slot);
+            createdCount++;
 
             if (i == timeList.size() - 2) {
                 break;
@@ -194,8 +207,8 @@ public class SlotServiceImpl implements SlotService {
             slotMapper.insert(slot);
         }
 
-        log.info("默认号源生成成功: scheduleId={}, shiftType={}, count={}", 
-                scheduleId, schedule.getShiftType(), slots.size());
+        log.info("默认号源生成成功: scheduleId={}, shiftType={}, created={}, skipped={}", 
+                scheduleId, schedule.getShiftType(), createdCount, existingTimeSlots.size());
     }
     
     private List<String> getTimeSlotsByShiftType(String shiftType) {

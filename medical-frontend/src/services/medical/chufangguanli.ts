@@ -164,3 +164,18 @@ export async function updatePrescriptionStatus(
     ...(options || {}),
   });
 }
+
+/** 修改处方 修改处方信息（仅可修改待审核状态的处方） POST /api/prescription/update */
+export async function updatePrescription(
+  body: API.PrescriptionUpdateRequest,
+  options?: { [key: string]: any }
+) {
+  return request<API.BaseResponsePrescriptionVO>("/api/prescription/update", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    data: body,
+    ...(options || {}),
+  });
+}

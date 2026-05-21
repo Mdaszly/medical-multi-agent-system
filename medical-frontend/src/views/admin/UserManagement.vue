@@ -116,6 +116,21 @@ onMounted(() => {
             <el-tag :type="roleMap[row.userRole]?.type">{{ roleMap[row.userRole]?.label }}</el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="类型" width="90">
+          <template #default="{ row }">
+            <el-tag 
+              v-if="row.userRole === 'admin' && row.adminAccountType === 'TEMPORARY'" 
+              type="warning" 
+              size="small"
+            >临时</el-tag>
+            <el-tag 
+              v-else-if="row.userRole === 'admin' && row.adminAccountType === 'FORMAL'" 
+              type="success" 
+              size="small"
+            >正式</el-tag>
+            <span v-else style="color: #999;">-</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="phone" label="手机号" />
         <el-table-column prop="userStatus" label="状态">
           <template #default="{ row }">

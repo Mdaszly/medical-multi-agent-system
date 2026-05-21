@@ -29,4 +29,7 @@ public class UserConstant {
     public static final Integer DOCTOR_STATUS_ONLINE = 1;
     public static final Integer DOCTOR_STATUS_OFFLINE = 0;
     public static final Integer DOCTOR_STATUS_LEFT = 2;
+
+    public static final String ADMIN_TYPE_FORMAL = "FORMAL";
+    public static final String ADMIN_TYPE_TEMPORARY = "TEMPORARY";
 }

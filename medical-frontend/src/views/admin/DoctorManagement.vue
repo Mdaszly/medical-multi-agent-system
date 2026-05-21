@@ -2,7 +2,10 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
+import { useRouter } from 'vue-router'
 import { listDoctorPage } from '@/services/medical/yishengguanli'
+
+const router = useRouter()
 
 const loading = ref(false)
 const searchKeyword = ref('')
@@ -46,6 +49,17 @@ const loadDoctors = async () => {
 
 const handleEdit = (doctor: any) => {
   ElMessage.info(`编辑医生: ${doctor.doctorName}`)
+}
+
+const handleAddSchedule = (doctor: any) => {
+  router.push({
+    path: '/admin/schedule/add',
+    query: {
+      doctorId: doctor.id,
+      doctorName: doctor.doctorName,
+      department: doctor.department
+    }
+  })
 }
 
 const handleToggleStatus = async (doctor: any) => {
@@ -118,9 +132,10 @@ onMounted(() => {
             <el-tag :type="statusMap[row.workStatus]?.type">{{ statusMap[row.workStatus]?.label }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="250">
+        <el-table-column label="操作" width="320">
           <template #default="{ row }">
             <el-button type="primary" size="small" link @click="handleEdit(row)">编辑</el-button>
+            <el-button type="info" size="small" link @click="handleAddSchedule(row)">添加排班</el-button>
             <el-button :type="row.workStatus === 1 ? 'warning' : 'success'" size="small" link @click="handleToggleStatus(row)">
               {{ row.workStatus === 1 ? '禁用' : '启用' }}
             </el-button>

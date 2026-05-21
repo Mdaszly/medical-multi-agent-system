@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useRouter } from 'vue-router'
 import { listSchedulePage } from '@/services/medical/paibanguanli'
-import ScheduleAddModal from '@/components/admin/ScheduleAddModal.vue'
 
+const router = useRouter()
 const loading = ref(false)
-const showAddModal = ref(false)
 
 const schedules = ref<any[]>([])
 
@@ -60,16 +60,20 @@ const handleEdit = (schedule: any) => {
 }
 
 const handleAdd = () => {
-  showAddModal.value = true
+  router.push('/admin/schedule/add')
 }
 
-const handleAddSuccess = () => {
-  showAddModal.value = false
-  loadSchedules()
-}
-
-const handleCloseModal = () => {
-  showAddModal.value = false
+const handleManageSlots = (schedule: any) => {
+  router.push({
+    path: '/admin/slots',
+    query: {
+      scheduleId: schedule.id,
+      doctorName: schedule.doctorName,
+      department: schedule.department,
+      scheduleDate: schedule.scheduleDate,
+      shiftType: schedule.shiftType
+    }
+  })
 }
 
 onMounted(() => {
@@ -113,9 +117,10 @@ onMounted(() => {
             <el-tag :type="statusMap[row.status]?.type">{{ statusMap[row.status]?.label }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="120">
+        <el-table-column label="操作" width="180">
           <template #default="{ row }">
             <el-button type="primary" size="small" link @click="handleEdit(row)">编辑</el-button>
+            <el-button type="info" size="small" link @click="handleManageSlots(row)">号源管理</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -132,12 +137,6 @@ onMounted(() => {
       
       <el-empty v-if="!loading && schedules.length === 0" description="暂无排班" />
     </el-card>
-
-    <ScheduleAddModal
-      :visible="showAddModal"
-      @close="handleCloseModal"
-      @success="handleAddSuccess"
-    />
   </div>
 </template>
 

@@ -12,7 +12,6 @@ import * as paibanguanli from "./paibanguanli";
 import * as chufangguanli from "./chufangguanli";
 import * as zhifuguanli from "./zhifuguanli";
 import * as knowledgeGraphController from "./knowledgeGraphController";
-import * as knowledgeGraph from "./knowledgeGraph";
 import * as jiankangdanganguanli from "./jiankangdanganguanli";
 import * as yaopinguanli from "./yaopinguanli";
 import * as yishengguanli from "./yishengguanli";
@@ -32,7 +31,6 @@ export default {
   chufangguanli,
   zhifuguanli,
   knowledgeGraphController,
-  knowledgeGraph,
   jiankangdanganguanli,
   yaopinguanli,
   yishengguanli,

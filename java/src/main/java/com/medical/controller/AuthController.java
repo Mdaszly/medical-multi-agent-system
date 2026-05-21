@@ -29,6 +29,14 @@ public class AuthController {
         return ResultUtils.success(registerVO, "注册成功");
     }
 
+    @PostMapping("/register/admin")
+    @Operation(summary = "管理员自助注册（临时账号）", description = "通过公开接口注册临时管理员账号，该账号将标注临时标签")
+    public BaseResponse<AuthRegisterVO> registerAdmin(@Valid @RequestBody AuthRegisterRequest request) {
+        log.info("Admin self-register request: account={}", request.getUserAccount());
+        AuthRegisterVO registerVO = authService.registerAdmin(request);
+        return ResultUtils.success(registerVO, "临时管理员注册成功");
+    }
+
     @PostMapping("/login")
     @Operation(summary = "统一登录", description = "患者/医生/管理员统一登录接口，使用账号密码登录")
     public BaseResponse<AuthLoginVO> login(@Valid @RequestBody AuthLoginRequest request) {

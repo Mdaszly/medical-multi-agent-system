@@ -22,6 +22,8 @@ public class AdminVO {
 
     private Integer userStatus;
 
+    private String adminAccountType;
+
     private LocalDateTime lastLoginTime;
 
     private LocalDateTime createTime;
@@ -38,6 +40,7 @@ public class AdminVO {
         vo.setEmail(user.getEmail());
         vo.setUserRole(user.getUserRole());
         vo.setUserStatus(user.getUserStatus());
+        vo.setAdminAccountType(user.getAdminAccountType());
         vo.setCreateTime(user.getCreateTime());
         return vo;
     }

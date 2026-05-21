@@ -70,6 +70,18 @@ medical:
       fallback-to-static-icd: true
       bootstrap-on-startup: true
       sync-to-rdb-on-startup: false
+      symptom-resolver:
+        enabled: true
+        synonym-enabled: true
+        vector-top-k: 5
+        vector-min-score: 0.72
+        vector-ambiguity-gap: 0.05
+        accept-min-confidence: 0.55
+        llm-disambiguate: true
+        llm-only-when-ambiguous: true
+        embedding-model: text-embedding-v3
+        build-index-on-startup: true
+        embedding-batch-size: 16
 
 app:
   llm:

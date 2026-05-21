@@ -103,6 +103,7 @@ CREATE TABLE IF NOT EXISTS appointment (
     status              SMALLINT DEFAULT 0,                        -- 状态：0-待确认, 1-已签到, 2-就诊中, 3-已完成, 4-已取消, 5-已过期, 6-已结算
     check_in_time       TIMESTAMP,                                 -- 签到时间
     check_in_status     VARCHAR(20) DEFAULT 'UNCHECKED',          -- 签到状态：UNCHECKED-未签到, CHECKED-已签到
+    diagnosis           TEXT,                                      -- 诊断结果（医生开方时写入）
     remark              TEXT,                                      -- 备注
     create_time         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     update_time         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -13,6 +13,8 @@ public class Doctor {
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    private Long userId;
+
     private String doctorNo;
 
     private String doctorName;

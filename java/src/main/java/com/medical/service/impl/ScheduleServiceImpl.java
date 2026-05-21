@@ -474,11 +474,13 @@ public class ScheduleServiceImpl implements ScheduleService {
         ThrowUtils.throwIf(!StringUtils.hasText(request.getShiftType()),
                 ErrorCode.PARAM_ERROR, "班次类型不能为空");
 
+        String shiftType = request.getShiftType().toLowerCase();
         if (!Arrays.asList(ScheduleConstant.SHIFT_MORNING,
                 ScheduleConstant.SHIFT_AFTERNOON,
-                ScheduleConstant.SHIFT_EVENING).contains(request.getShiftType())) {
+                ScheduleConstant.SHIFT_EVENING).contains(shiftType)) {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "无效的班次类型");
         }
+        request.setShiftType(shiftType);
 
         if (request.getMaxAppointments() != null && request.getMaxAppointments() <= 0) {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "最大预约数必须大于0");

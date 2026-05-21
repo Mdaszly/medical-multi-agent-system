@@ -53,6 +53,8 @@ public class AppointmentServiceImpl implements AppointmentService {
     private final ScheduleMapper scheduleMapper;
     private final DoctorMapper doctorMapper;
     private final UserMapper userMapper;
+    private final BillMapper billMapper;
+    private final PrescriptionMapper prescriptionMapper;
     private final RedissonLockUtil redissonLockUtil;
     private final RedisCacheUtil redisCacheUtil;
 
@@ -222,20 +224,74 @@ public class AppointmentServiceImpl implements AppointmentService {
         startDate = startDate != null ? startDate : today.minusDays(30);
         endDate = endDate != null ? endDate : today.plusDays(30);
 
-        return appointmentMapper.selectByUserIdAndDateRange(userId, startDate, endDate).stream()
-                .map(AppointmentVO::fromEntity).collect(Collectors.toList());
+        List<Appointment> appointments = appointmentMapper.selectByUserIdAndDateRange(userId, startDate, endDate);
+        for (Appointment appointment : appointments) {
+            reconcileDiagnosisFromPrescription(appointment);
+            reconcileSettledIfBillPaid(appointment);
+        }
+        return appointments.stream().map(AppointmentVO::fromEntity).collect(Collectors.toList());
+    }
+
+    /**
+     * 补偿：从处方表回填预约诊断（历史数据）
+     */
+    private void reconcileDiagnosisFromPrescription(Appointment appointment) {
+        if (appointment == null || appointment.getId() == null || StringUtils.hasText(appointment.getDiagnosis())) {
+            return;
+        }
+        LambdaQueryWrapper<Prescription> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Prescription::getAppointmentId, appointment.getId())
+                .orderByDesc(Prescription::getCreateTime)
+                .last("LIMIT 1");
+        Prescription prescription = prescriptionMapper.selectOne(wrapper);
+        if (prescription == null || !StringUtils.hasText(prescription.getDiagnosis())) {
+            return;
+        }
+        appointment.setDiagnosis(prescription.getDiagnosis());
+        if (appointment.getPrescriptionId() == null) {
+            appointment.setPrescriptionId(prescription.getId());
+        }
+        appointment.setUpdateTime(LocalDateTime.now());
+        appointmentMapper.updateById(appointment);
+        log.info("补偿回填预约诊断: appointmentId={}, prescriptionId={}", appointment.getId(), prescription.getId());
+    }
+
+    /**
+     * 补偿：账单已支付但预约仍为诊疗中时，自动置为已结算
+     */
+    private void reconcileSettledIfBillPaid(Appointment appointment) {
+        if (appointment == null || appointment.getId() == null) {
+            return;
+        }
+        if (!AppointmentConstant.APPOINTMENT_STATUS_IN_CONSULTATION.equals(appointment.getStatus())) {
+            return;
+        }
+        Bill bill = billMapper.selectByAppointmentId(appointment.getId());
+        if (bill == null || !"PAID".equals(bill.getStatus())) {
+            return;
+        }
+        appointment.setStatus(AppointmentConstant.APPOINTMENT_STATUS_SETTLED);
+        appointment.setUpdateTime(LocalDateTime.now());
+        appointmentMapper.updateById(appointment);
+        log.info("补偿更新预约为已结算: appointmentId={}, billId={}", appointment.getId(), bill.getId());
     }
 
     @Override
-    public List<AppointmentVO> listAppointmentByDoctor(Long doctorId, LocalDate startDate, LocalDate endDate) {
-        ThrowUtils.throwIf(doctorId == null || doctorId <= 0, ErrorCode.PARAM_ERROR, "医生ID无效");
+    public List<AppointmentVO> listAppointmentByDoctor(Long userId, LocalDate startDate, LocalDate endDate) {
+        ThrowUtils.throwIf(userId == null || userId <= 0, ErrorCode.PARAM_ERROR, "用户ID无效");
 
         // 默认查询今天到未来7天
         LocalDate today = LocalDate.now();
         startDate = startDate != null ? startDate : today;
         endDate = endDate != null ? endDate : today.plusDays(7);
 
-        return appointmentMapper.selectByDoctorIdAndDateRange(doctorId, startDate, endDate).stream()
+        // 根据用户ID获取医生信息
+        Doctor doctor = doctorMapper.selectByUserId(userId);
+        ThrowUtils.throwIf(doctor == null, ErrorCode.PARAM_ERROR, "医生不存在");
+        
+        log.info("查询医生预约: userId={}, doctorId={}, startDate={}, endDate={}", userId, doctor.getId(), startDate, endDate);
+
+        return appointmentMapper.selectByDoctorIdAndDateRange(doctor.getId(), startDate, endDate).stream()
                 .map(AppointmentVO::fromEntity)
                 .sorted((a, b) -> {
                     // 先按日期排序，再按时段排序
@@ -309,7 +365,6 @@ public class AppointmentServiceImpl implements AppointmentService {
 
         LambdaQueryWrapper<Doctor> doctorWrapper = new LambdaQueryWrapper<>();
         doctorWrapper.eq(Doctor::getDepartment, department)
-                .eq(Doctor::getWorkStatus, UserConstant.DOCTOR_STATUS_ONLINE)
                 .eq(Doctor::getIsDelete, UserConstant.NOT_DELETED)
                 .orderByAsc(Doctor::getTitle);
         List<Doctor> doctors = doctorMapper.selectList(doctorWrapper);

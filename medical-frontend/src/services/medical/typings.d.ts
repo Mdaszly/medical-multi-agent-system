@@ -329,6 +329,18 @@ declare namespace API {
     message?: string;
   };
 
+  type BaseResponseListDepartmentDateStatusVO = {
+    code?: number;
+    data?: DepartmentDateStatusVO[];
+    message?: string;
+  };
+
+  type BaseResponseListDepartmentDoctorBookingVO = {
+    code?: number;
+    data?: DepartmentDoctorBookingVO[];
+    message?: string;
+  };
+
   type BaseResponseListDoctorVO = {
     code?: number;
     data?: DoctorVO[];
@@ -374,41 +386,6 @@ declare namespace API {
   type BaseResponseListString = {
     code?: number;
     data?: string[];
-    message?: string;
-  };
-
-  type DepartmentDateStatusVO = {
-    scheduleDate?: string;
-    weekDayLabel?: string;
-    dayOfMonth?: number;
-    hasAvailable?: boolean;
-    allFull?: boolean;
-  };
-
-  type BaseResponseListDepartmentDateStatusVO = {
-    code?: number;
-    data?: DepartmentDateStatusVO[];
-    message?: string;
-  };
-
-  type DepartmentDoctorBookingVO = {
-    doctorId?: number;
-    doctorName?: string;
-    title?: string;
-    specialty?: string;
-    description?: string;
-    consultationFee?: number;
-    morningRemaining?: number;
-    afternoonRemaining?: number;
-    eveningRemaining?: number;
-    totalRemaining?: number;
-    bookable?: boolean;
-    hasSchedule?: boolean;
-  };
-
-  type BaseResponseListDepartmentDoctorBookingVO = {
-    code?: number;
-    data?: DepartmentDoctorBookingVO[];
     message?: string;
   };
 
@@ -575,6 +552,26 @@ declare namespace API {
     patientContext?: Record<string, any>;
   };
 
+  type SymptomMatchVO = {
+    userPhrase?: string;
+    canonicalName?: string;
+    symptomCode?: string;
+    confidence?: number;
+    method?: string;
+    rationale?: string;
+  };
+
+  type GraphEvidenceVO = {
+    rows?: SymptomDiagnosisRowVO[];
+    extractedSymptoms?: string[];
+    icdCandidateCodes?: string[];
+    graphHit?: boolean;
+    queryTimeMs?: number;
+    formattedText?: string;
+    symptomResolutionTrace?: string;
+    symptomMatches?: SymptomMatchVO[];
+  };
+
   type ConsultVO = {
     sessionId?: string;
     answer?: string;
@@ -590,6 +587,10 @@ declare namespace API {
     agentType?: string;
     agentTrace?: AgentTraceVO[];
     errors?: string[];
+    graphHit?: boolean;
+    graphHitMessage?: string;
+    graphEvidenceDetail?: GraphEvidenceVO;
+    /** @deprecated 使用 graphEvidenceDetail.rows */
     graphEvidence?: SymptomDiagnosisRowVO[];
     groundingStatus?: string;
   };
@@ -614,13 +615,36 @@ declare namespace API {
     id: number;
   };
 
-  type deleteSessionParams = {
-    sessionId: string;
+  type DeleteSessionRequest = {
+    sessionId?: string;
   };
 
   type deleteSlotParams = {
     /** 号源ID */
     id: number;
+  };
+
+  type DepartmentDateStatusVO = {
+    scheduleDate?: string;
+    weekDayLabel?: string;
+    dayOfMonth?: number;
+    hasAvailable?: boolean;
+    allFull?: boolean;
+  };
+
+  type DepartmentDoctorBookingVO = {
+    doctorId?: number;
+    doctorName?: string;
+    title?: string;
+    specialty?: string;
+    description?: string;
+    consultationFee?: number;
+    morningRemaining?: number;
+    afternoonRemaining?: number;
+    eveningRemaining?: number;
+    totalRemaining?: number;
+    bookable?: boolean;
+    hasSchedule?: boolean;
   };
 
   type dispensePrescriptionParams = {
@@ -647,6 +671,8 @@ declare namespace API {
     title?: string;
     /** 工作状态：0-休假，1-在岗，2-离职 */
     workStatus?: number;
+    /** 是否仅查询在岗医生（患者端预约推荐 true） */
+    onlineOnly?: boolean;
   };
 
   type DoctorUpdateRequest = {
@@ -1055,56 +1081,56 @@ declare namespace API {
     size?: number;
     current?: number;
     records?: AdminVO[];
-    total?: number;
     pages?: number;
+    total?: number;
   };
 
   type IPageAppointmentVO = {
     size?: number;
     current?: number;
     records?: AppointmentVO[];
-    total?: number;
     pages?: number;
+    total?: number;
   };
 
   type IPageBillVO = {
     size?: number;
     current?: number;
     records?: BillVO[];
-    total?: number;
     pages?: number;
+    total?: number;
   };
 
   type IPageDoctorVO = {
     size?: number;
     current?: number;
     records?: DoctorVO[];
-    total?: number;
     pages?: number;
+    total?: number;
   };
 
   type IPagePrescriptionVO = {
     size?: number;
     current?: number;
     records?: PrescriptionVO[];
-    total?: number;
     pages?: number;
+    total?: number;
   };
 
   type IPageScheduleVO = {
     size?: number;
     current?: number;
     records?: ScheduleVO[];
-    total?: number;
     pages?: number;
+    total?: number;
   };
 
   type IPageUserVO = {
     size?: number;
     current?: number;
     records?: UserVO[];
-    total?: number;
     pages?: number;
+    total?: number;
   };
 
   type listAppointmentByDoctorParams = {
@@ -1164,6 +1190,22 @@ declare namespace API {
   type listByUserIdParams = {
     /** 用户ID */
     userId: number;
+  };
+
+  type listDepartmentDoctorBookingParams = {
+    /** 科室名称 */
+    department: string;
+    /** 排班日期 */
+    scheduleDate: string;
+  };
+
+  type listDepartmentWeekStatusParams = {
+    /** 科室名称 */
+    department: string;
+    /** 起始日期，默认今天 */
+    startDate?: string;
+    /** 查询天数，默认7 */
+    days?: number;
   };
 
   type listDoctorByDepartmentParams = {
@@ -1261,14 +1303,24 @@ declare namespace API {
   };
 
   type PrescriptionDrugItem = {
-    drugCode?: string;
-    drugName?: string;
+    /** 明细ID（修改时必填） */
+    id?: number;
+    /** 药品编码 */
+    drugCode: string;
+    /** 药品名称 */
+    drugName: string;
+    /** 规格 */
     specification?: string;
+    /** 剂量 */
     dosage?: string;
-    usage?: string;
-    frequency?: string;
-    duration?: string;
-    quantity?: number;
+    /** 用法 */
+    usage: string;
+    /** 频次 */
+    frequency: string;
+    /** 用药时长（天数） */
+    duration: string;
+    /** 数量 */
+    quantity: number;
   };
 
   type PrescriptionItemVO = {
@@ -1304,6 +1356,17 @@ declare namespace API {
     prescriptionId?: number;
     status?: number;
     remark?: string;
+  };
+
+  type PrescriptionUpdateRequest = {
+    /** 处方ID */
+    id: number;
+    /** 诊断信息 */
+    diagnosis?: string;
+    /** 备注 */
+    remark?: string;
+    /** 药品列表 */
+    drugs?: PrescriptionDrugItem[];
   };
 
   type PrescriptionVO = {

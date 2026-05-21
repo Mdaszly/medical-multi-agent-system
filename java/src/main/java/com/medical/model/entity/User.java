@@ -33,6 +33,12 @@ public class User {
 
     private Integer userStatus;
 
+    /**
+     * 管理员账号类型：FORMAL-正式管理员, TEMPORARY-临时管理员
+     * 仅对admin角色有效，非admin角色为NULL
+     */
+    private String adminAccountType;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 

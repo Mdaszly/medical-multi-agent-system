@@ -28,4 +28,10 @@ public class GraphEvidence {
 
     private String formattedText;
 
+    /** 语义解析轨迹（症状表述 → 标准名） */
+    private String symptomResolutionTrace;
+
+    @Builder.Default
+    private List<com.medical.service.kg.symptom.SymptomMatch> symptomMatches = new ArrayList<>();
+
 }
