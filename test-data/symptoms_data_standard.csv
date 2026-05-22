@@ -1,0 +1,21 @@
+id,name,code,category_code,category_name,description,body_part,pinyin,frequency,severity,urgent
+1,头痛,S001,N01,神经系统,头部疼痛的感觉，可分为原发性和继发性头痛,头部,toutong,3,2,false
+2,发热,S002,N02,全身性症状,体温升高超过正常范围（37.5℃以上）,全身,fare,3,2,false
+3,咳嗽,S003,R01,呼吸系统,呼吸道分泌物或异物排出的反射动作,呼吸道,kesou,3,1,false
+4,呼吸困难,S004,R02,呼吸系统,呼吸费力或感到空气不足,呼吸道,huxikunnan,2,3,true
+5,恶心,S005,D01,消化系统,上腹部不适，伴有呕吐欲望,腹部,exin,3,1,false
+6,呕吐,S006,D02,消化系统,胃内容物经食管和口腔排出体外,腹部,outu,2,2,false
+7,腹泻,S007,D03,消化系统,排便次数增多，粪便稀薄,肠道,fuxie,3,2,false
+8,腹痛,S008,D04,消化系统,腹部疼痛或不适,腹部,futong,3,2,false
+9,头晕,S009,N03,神经系统,头部发晕、眼花、站立不稳,头部,touyun,3,1,false
+10,乏力,S010,N04,全身性症状,全身无力、疲倦感,全身,fali,3,1,false
+11,胸痛,S011,C01,心血管系统,胸部疼痛或不适感,胸部,xiong tong,2,3,true
+12,心悸,S012,C02,心血管系统,自觉心脏跳动不规律或过快,心脏,xinji,2,2,false
+13,关节痛,S013,M01,肌肉骨骼系统,关节部位的疼痛,关节,guanjietong,3,2,false
+14,皮疹,S014,S01,皮肤系统,皮肤出现异常的斑点或斑块,皮肤,pizhen,2,1,false
+15,瘙痒,S015,S02,皮肤系统,皮肤发痒的感觉,皮肤,saoyang,3,1,false
+16,咽喉痛,S016,R03,呼吸系统,咽喉部位的疼痛,咽喉,yanhoutong,3,1,false
+17,鼻塞,S017,R04,呼吸系统,鼻腔堵塞，呼吸不畅,鼻腔,bisa,3,1,false
+18,流涕,S018,R05,呼吸系统,鼻腔分泌物增多,鼻腔,liuti,3,1,false
+19,食欲不振,S019,D05,消化系统,对食物缺乏兴趣或欲望,消化道,shiyubuzhen,2,1,false
+20,失眠,S020,N05,神经系统,难以入睡或保持睡眠状态,神经系统,shimian,2,2,false

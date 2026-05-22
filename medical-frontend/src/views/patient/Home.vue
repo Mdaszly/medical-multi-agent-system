@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import { Calendar, Document } from '@element-plus/icons-vue'
+import { Calendar, Document, FirstAidKit } from '@element-plus/icons-vue'
 import AiConsultHeroEntry from '@/components/patient/AiConsultHeroEntry.vue'
 
 const router = useRouter()
@@ -8,6 +8,7 @@ const router = useRouter()
 const quickActions = [
   { title: '预约挂号', icon: Calendar, path: '/patient/doctors', description: '先选科室，再选医生与号源' },
   { title: '我的预约', icon: Document, path: '/patient/my-appointments', description: '查看和管理预约记录' },
+  { title: '健康档案', icon: FirstAidKit, path: '/patient/health-profile', description: '管理病史、过敏与体征信息' },
 ]
 </script>
 

@@ -1,0 +1,687 @@
+{
+  "info": {
+    "name": "医院挂号预约系统API",
+    "description": "基于Spring Boot的医院挂号预约系统接口文档，支持预约管理、号源查询、费用结算等功能",
+    "version": "1.0.0",
+    "schema": "https://Apifox.cn",
+    "environment": {
+      "development": {
+        "baseUrl": "http://localhost:8080",
+        "description": "开发环境"
+      },
+      "test": {
+        "baseUrl": "http://localhost:8080",
+        "description": "测试环境"
+      }
+    }
+  },
+  "categories": [
+    {
+      "name": "预约管理",
+      "description": "预约挂号核心功能"
+    },
+    {
+      "name": "排班管理",
+      "description": "医生排班查询"
+    },
+    {
+      "name": "认证管理",
+      "description": "用户登录注册"
+    }
+  ],
+  "apis": [
+    {
+      "name": "创建预约",
+      "method": "POST",
+      "path": "/api/appointment/create",
+      "category": "预约管理",
+      "description": "患者创建预约挂号",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json",
+          "required": true
+        },
+        {
+          "name": "satoken",
+          "value": "{{satoken}}",
+          "description": "登录后获取的Token",
+          "required": true
+        }
+      ],
+      "requestBody": {
+        "scheduleId": 1,
+        "timeSlot": "08:00-08:30",
+        "remark": "首次就诊"
+      },
+      "requestBodySchema": {
+        "type": "object",
+        "properties": {
+          "scheduleId": {
+            "type": "long",
+            "description": "排班ID",
+            "required": true,
+            "example": 1
+          },
+          "timeSlot": {
+            "type": "string",
+            "description": "预约时段，格式：HH:mm-HH:mm",
+            "required": true,
+            "example": "08:00-08:30"
+          },
+          "remark": {
+            "type": "string",
+            "description": "备注",
+            "required": false,
+            "example": "首次就诊"
+          }
+        }
+      },
+      "response": {
+        "code": 20000,
+        "message": "操作成功",
+        "data": {
+          "id": 1,
+          "appointmentNo": "APT20260515100000123456",
+          "userId": 6,
+          "userName": "张三",
+          "doctorId": 1,
+          "doctorName": "李医生",
+          "department": "心内科",
+          "scheduleId": 1,
+          "scheduleDate": "2026-05-16",
+          "shiftType": "MORNING",
+          "timeSlot": "08:00-08:30",
+          "consultationFee": 20.0,
+          "status": 0,
+          "statusText": "待就诊",
+          "checkInStatus": false,
+          "createTime": "2026-05-15T10:00:00"
+        }
+      },
+      "errorCodes": [
+        {
+          "code": 40000,
+          "message": "参数错误",
+          "examples": [
+            {
+              "scenario": "排班ID为空",
+              "response": { "code": 40000, "message": "排班ID无效" }
+            },
+            {
+              "scenario": "时段为空",
+              "response": { "code": 40000, "message": "时段不能为空" }
+            },
+            {
+              "scenario": "号源已满",
+              "response": { "code": 40000, "message": "该时段已约满" }
+            },
+            {
+              "scenario": "重复预约",
+              "response": { "code": 40000, "message": "您已预约该时段" }
+            }
+          ]
+        },
+        {
+          "code": 40100,
+          "message": "未登录",
+          "response": { "code": 40100, "message": "请先登录" }
+        },
+        {
+          "code": 50000,
+          "message": "系统错误",
+          "examples": [
+            {
+              "scenario": "获取分布式锁失败",
+              "response": { "code": 50000, "message": "系统繁忙，请稍后重试" }
+            },
+            {
+              "scenario": "乐观锁更新失败",
+              "response": { "code": 50000, "message": "号源已被占用，请重试" }
+            }
+          ]
+        }
+      ],
+      "testCases": [
+        {
+          "name": "正常创建预约",
+          "description": "用户登录后成功创建预约",
+          "steps": [
+            "1. 用户登录获取satoken",
+            "2. 查询可预约的排班和号源",
+            "3. 调用创建预约接口",
+            "4. 验证返回预约信息"
+          ],
+          "expectedResult": "返回预约详情，状态为待就诊"
+        },
+        {
+          "name": "号源已满",
+          "description": "尝试预约已满的时段",
+          "steps": [
+            "1. 登录用户",
+            "2. 查询到一个available_slots=0的时段",
+            "3. 调用创建预约接口"
+          ],
+          "expectedResult": "返回错误：该时段已约满"
+        },
+        {
+          "name": "重复预约",
+          "description": "同一用户预约同时段",
+          "steps": ["1. 用户已预约某时段", "2. 再次预约同一时段"],
+          "expectedResult": "返回错误：您已预约该时段"
+        }
+      ]
+    },
+    {
+      "name": "取消预约",
+      "method": "POST",
+      "path": "/api/appointment/cancel",
+      "category": "预约管理",
+      "description": "患者取消已预约的挂号",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json",
+          "required": true
+        },
+        {
+          "name": "satoken",
+          "value": "{{satoken}}",
+          "required": true
+        }
+      ],
+      "requestBody": {
+        "appointmentId": 1,
+        "cancelReason": "时间冲突"
+      },
+      "requestBodySchema": {
+        "type": "object",
+        "properties": {
+          "appointmentId": {
+            "type": "long",
+            "description": "预约ID",
+            "required": true,
+            "example": 1
+          },
+          "cancelReason": {
+            "type": "string",
+            "description": "取消原因",
+            "required": false,
+            "example": "时间冲突"
+          }
+        }
+      },
+      "response": {
+        "code": 20000,
+        "message": "操作成功",
+        "data": null
+      },
+      "errorCodes": [
+        {
+          "code": 40000,
+          "message": "参数错误",
+          "examples": [
+            {
+              "scenario": "预约ID无效",
+              "response": { "code": 40000, "message": "预约ID无效" }
+            },
+            {
+              "scenario": "无权取消",
+              "response": { "code": 40300, "message": "无权取消此预约" }
+            },
+            {
+              "scenario": "状态不可取消",
+              "response": { "code": 40000, "message": "该预约状态不可取消" }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "获取预约详情",
+      "method": "GET",
+      "path": "/api/appointment/get",
+      "category": "预约管理",
+      "description": "根据ID获取预约详细信息",
+      "headers": [
+        {
+          "name": "satoken",
+          "value": "{{satoken}}",
+          "required": false
+        }
+      ],
+      "queryParams": [
+        {
+          "name": "id",
+          "type": "long",
+          "description": "预约ID",
+          "required": true,
+          "example": 1
+        }
+      ],
+      "response": {
+        "code": 20000,
+        "message": "操作成功",
+        "data": {
+          "id": 1,
+          "appointmentNo": "APT20260515100000123456",
+          "userId": 6,
+          "userName": "张三",
+          "doctorId": 1,
+          "doctorName": "李医生",
+          "department": "心内科",
+          "scheduleId": 1,
+          "scheduleDate": "2026-05-16",
+          "shiftType": "MORNING",
+          "timeSlot": "08:00-08:30",
+          "consultationFee": 20.0,
+          "status": 0,
+          "statusText": "待就诊",
+          "checkInStatus": false,
+          "createTime": "2026-05-15T10:00:00"
+        }
+      }
+    },
+    {
+      "name": "查询用户预约列表",
+      "method": "GET",
+      "path": "/api/appointment/list/user",
+      "category": "预约管理",
+      "description": "查询当前用户的预约列表",
+      "headers": [
+        {
+          "name": "satoken",
+          "value": "{{satoken}}",
+          "required": true
+        }
+      ],
+      "queryParams": [
+        {
+          "name": "startDate",
+          "type": "string",
+          "description": "开始日期",
+          "required": false,
+          "example": "2026-05-01"
+        },
+        {
+          "name": "endDate",
+          "type": "string",
+          "description": "结束日期",
+          "required": false,
+          "example": "2026-05-31"
+        }
+      ],
+      "response": {
+        "code": 20000,
+        "message": "操作成功",
+        "data": [
+          {
+            "id": 1,
+            "appointmentNo": "APT20260515100000123456",
+            "doctorName": "李医生",
+            "department": "心内科",
+            "scheduleDate": "2026-05-16",
+            "shiftType": "MORNING",
+            "timeSlot": "08:00-08:30",
+            "statusText": "待就诊"
+          }
+        ]
+      }
+    },
+    {
+      "name": "查询医生预约列表",
+      "method": "GET",
+      "path": "/api/appointment/list/doctor",
+      "category": "预约管理",
+      "description": "查询当前医生的预约患者列表",
+      "headers": [
+        {
+          "name": "satoken",
+          "value": "{{satoken}}",
+          "required": true
+        }
+      ],
+      "queryParams": [
+        {
+          "name": "startDate",
+          "type": "string",
+          "description": "开始日期",
+          "required": false,
+          "example": "2026-05-15"
+        },
+        {
+          "name": "endDate",
+          "type": "string",
+          "description": "结束日期",
+          "required": false,
+          "example": "2026-05-22"
+        }
+      ],
+      "response": {
+        "code": 20000,
+        "message": "操作成功",
+        "data": [
+          {
+            "id": 1,
+            "appointmentNo": "APT20260515100000123456",
+            "userName": "张三",
+            "scheduleDate": "2026-05-16",
+            "timeSlot": "08:00-08:30",
+            "statusText": "待就诊"
+          }
+        ]
+      }
+    },
+    {
+      "name": "分页查询预约列表",
+      "method": "POST",
+      "path": "/api/appointment/list/page",
+      "category": "预约管理",
+      "description": "管理员分页查询预约列表",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json",
+          "required": true
+        },
+        {
+          "name": "satoken",
+          "value": "{{satoken}}",
+          "required": true
+        }
+      ],
+      "requestBody": {
+        "userId": null,
+        "doctorId": null,
+        "department": null,
+        "scheduleDate": null,
+        "status": null,
+        "current": 1,
+        "pageSize": 10
+      },
+      "requestBodySchema": {
+        "type": "object",
+        "properties": {
+          "userId": { "type": "long", "description": "用户ID" },
+          "doctorId": { "type": "long", "description": "医生ID" },
+          "department": { "type": "string", "description": "科室" },
+          "scheduleDate": { "type": "string", "description": "就诊日期" },
+          "status": {
+            "type": "int",
+            "description": "状态：0-待就诊 1-已签到 2-诊疗中 3-已完成 4-已取消"
+          },
+          "current": { "type": "long", "description": "当前页", "default": 1 },
+          "pageSize": { "type": "long", "description": "页大小", "default": 10 }
+        }
+      },
+      "response": {
+        "code": 20000,
+        "message": "操作成功",
+        "data": {
+          "records": [],
+          "total": 100,
+          "size": 10,
+          "current": 1,
+          "pages": 10
+        }
+      }
+    },
+    {
+      "name": "获取号源列表",
+      "method": "GET",
+      "path": "/api/appointment/slots",
+      "category": "预约管理",
+      "description": "根据排班ID获取号源列表",
+      "headers": [
+        {
+          "name": "satoken",
+          "value": "{{satoken}}",
+          "required": false
+        }
+      ],
+      "queryParams": [
+        {
+          "name": "scheduleId",
+          "type": "long",
+          "description": "排班ID",
+          "required": true,
+          "example": 1
+        }
+      ],
+      "response": {
+        "code": 20000,
+        "message": "操作成功",
+        "data": [
+          {
+            "id": 1,
+            "scheduleId": 1,
+            "timeSlot": "08:00-08:30",
+            "timeStart": "08:00",
+            "timeEnd": "08:30",
+            "maxSlots": 5,
+            "availableSlots": 3,
+            "lockedSlots": 0,
+            "status": "AVAILABLE"
+          },
+          {
+            "id": 2,
+            "scheduleId": 1,
+            "timeSlot": "08:30-09:00",
+            "timeStart": "08:30",
+            "timeEnd": "09:00",
+            "maxSlots": 5,
+            "availableSlots": 0,
+            "lockedSlots": 0,
+            "status": "SOLD_OUT"
+          }
+        ]
+      }
+    },
+    {
+      "name": "预约签到",
+      "method": "POST",
+      "path": "/api/appointment/checkin",
+      "category": "预约管理",
+      "description": "患者到达医院后签到确认",
+      "headers": [
+        {
+          "name": "satoken",
+          "value": "{{satoken}}",
+          "required": true
+        }
+      ],
+      "queryParams": [
+        {
+          "name": "appointmentId",
+          "type": "long",
+          "description": "预约ID",
+          "required": true,
+          "example": 1
+        }
+      ],
+      "response": {
+        "code": 20000,
+        "message": "操作成功",
+        "data": null
+      },
+      "errorCodes": [
+        {
+          "code": 40000,
+          "message": "参数错误",
+          "examples": [
+            {
+              "scenario": "预约状态不可签到",
+              "response": { "code": 40000, "message": "该预约状态不可签到" }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "更新预约状态",
+      "method": "POST",
+      "path": "/api/appointment/status/update",
+      "category": "预约管理",
+      "description": "管理员更新预约状态",
+      "headers": [
+        {
+          "name": "satoken",
+          "value": "{{satoken}}",
+          "required": true
+        }
+      ],
+      "queryParams": [
+        {
+          "name": "appointmentId",
+          "type": "long",
+          "description": "预约ID",
+          "required": true
+        },
+        {
+          "name": "status",
+          "type": "int",
+          "description": "状态：1-已签到 2-诊疗中 3-已完成 4-已取消",
+          "required": true
+        }
+      ],
+      "response": {
+        "code": 20000,
+        "message": "操作成功",
+        "data": null
+      }
+    },
+    {
+      "name": "按科室查询排班",
+      "method": "GET",
+      "path": "/api/schedule/list/department",
+      "category": "排班管理",
+      "description": "查询指定科室在指定日期的排班信息",
+      "queryParams": [
+        {
+          "name": "department",
+          "type": "string",
+          "description": "科室名称",
+          "required": true,
+          "example": "心内科"
+        },
+        {
+          "name": "scheduleDate",
+          "type": "string",
+          "description": "排班日期",
+          "required": true,
+          "example": "2026-05-16"
+        }
+      ],
+      "response": {
+        "code": 20000,
+        "message": "操作成功",
+        "data": [
+          {
+            "id": 1,
+            "doctorId": 1,
+            "doctorName": "李医生",
+            "department": "心内科",
+            "scheduleDate": "2026-05-16",
+            "shiftType": "MORNING",
+            "shiftName": "早班",
+            "timeRange": "08:00-14:00",
+            "maxAppointments": 20,
+            "currentAppointments": 5,
+            "status": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "获取排班详情",
+      "method": "GET",
+      "path": "/api/schedule/get",
+      "category": "排班管理",
+      "description": "根据ID获取排班详细信息",
+      "queryParams": [
+        {
+          "name": "id",
+          "type": "long",
+          "description": "排班ID",
+          "required": true,
+          "example": 1
+        }
+      ],
+      "response": {
+        "code": 20000,
+        "message": "操作成功",
+        "data": {
+          "id": 1,
+          "doctorId": 1,
+          "doctorName": "李医生",
+          "department": "心内科",
+          "scheduleDate": "2026-05-16",
+          "shiftType": "MORNING",
+          "shiftName": "早班",
+          "timeRange": "08:00-14:00",
+          "maxAppointments": 20,
+          "currentAppointments": 5,
+          "status": 1
+        }
+      }
+    },
+    {
+      "name": "用户登录",
+      "method": "POST",
+      "path": "/api/auth/login",
+      "category": "认证管理",
+      "description": "用户登录系统获取Token",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json",
+          "required": true
+        }
+      ],
+      "requestBody": {
+        "userAccount": "admin",
+        "userPassword": "Admin@123456"
+      },
+      "requestBodySchema": {
+        "type": "object",
+        "properties": {
+          "userAccount": {
+            "type": "string",
+            "description": "用户账号",
+            "required": true,
+            "example": "admin"
+          },
+          "userPassword": {
+            "type": "string",
+            "description": "用户密码",
+            "required": true,
+            "example": "Admin@123456"
+          }
+        }
+      },
+      "response": {
+        "code": 20000,
+        "message": "登录成功",
+        "data": {
+          "token": "20c79988-5cd7-4e52-818c-dc2239f7e001",
+          "tokenName": "satoken",
+          "userId": 6,
+          "userName": "测试管理员",
+          "userRole": "admin"
+        }
+      }
+    }
+  ],
+  "variables": [
+    {
+      "name": "satoken",
+      "type": "string",
+      "description": "登录后获取的认证Token",
+      "example": "20c79988-5cd7-4e52-818c-dc2239f7e001"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "headerName": "satoken"
+  }
+}

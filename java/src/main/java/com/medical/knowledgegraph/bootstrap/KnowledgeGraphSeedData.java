@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 与 docs/sql/seed_symptom_icd.sql 对齐的 Neo4j 权威种子数据
+ * Neo4j 权威种子数据（RDB 通过 sync-to-rdb 同步，勿用手写 SQL seed）
  */
 @Slf4j
 @Component

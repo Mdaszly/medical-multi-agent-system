@@ -1,0 +1,67 @@
+{
+  "version": "1.0",
+  "description": "向量 Top-K 召回评测集：query 为口语/改写表述，expected 为 Neo4j 标准症状名。刻意避免与 symptom-synonyms.json 键完全一致，以隔离向量层。",
+  "labelRules": {
+    "source": "医学标准症状词表 symptoms_data_standard.csv + 临床常识同义改写",
+    "validator": "expected 中每个名称必须存在于图谱 Symptom 节点 name 属性",
+    "negative": "hard_negative 桶 expected 为空数组，要求 Top-K 均不命中任何标准症状"
+  },
+  "distribution": {
+    "oral_paraphrase": 22,
+    "multi_symptom": 8,
+    "exact_standard": 5,
+    "hard_negative": 5,
+    "confusing_near": 5
+  },
+  "cases": [
+    {"id": "v001", "bucket": "oral_paraphrase", "query": "脑袋胀痛", "expected": ["头痛"], "note": "同义词表未收录"},
+    {"id": "v002", "bucket": "oral_paraphrase", "query": "头部发紧发胀", "expected": ["头痛"]},
+    {"id": "v003", "bucket": "oral_paraphrase", "query": "体温升高不少", "expected": ["发热"]},
+    {"id": "v004", "bucket": "oral_paraphrase", "query": "一直干咳不止", "expected": ["咳嗽"]},
+    {"id": "v005", "bucket": "oral_paraphrase", "query": "肚子一阵阵疼", "expected": ["腹痛"]},
+    {"id": "v006", "bucket": "oral_paraphrase", "query": "上腹不舒服想呕", "expected": ["恶心"]},
+    {"id": "v007", "bucket": "oral_paraphrase", "query": "胃内容物往上涌", "expected": ["呕吐"]},
+    {"id": "v008", "bucket": "oral_paraphrase", "query": "排稀水样便", "expected": ["腹泻"]},
+    {"id": "v009", "bucket": "oral_paraphrase", "query": "头昏眼花站不稳", "expected": ["头晕"]},
+    {"id": "v010", "bucket": "oral_paraphrase", "query": "浑身没劲易疲劳", "expected": ["乏力"]},
+    {"id": "v011", "bucket": "oral_paraphrase", "query": "胸口发闷", "expected": ["胸痛"]},
+    {"id": "v012", "bucket": "oral_paraphrase", "query": "喘不过气", "expected": ["呼吸困难"]},
+    {"id": "v013", "bucket": "oral_paraphrase", "query": "心跳特别快", "expected": ["心悸"]},
+    {"id": "v014", "bucket": "oral_paraphrase", "query": "关节酸胀不适", "expected": ["关节痛"]},
+    {"id": "v015", "bucket": "oral_paraphrase", "query": "皮肤起红疹子", "expected": ["皮疹"]},
+    {"id": "v016", "bucket": "oral_paraphrase", "query": "身上发痒难忍", "expected": ["瘙痒"]},
+    {"id": "v017", "bucket": "oral_paraphrase", "query": "嗓子发炎似的痛", "expected": ["咽喉痛"]},
+    {"id": "v018", "bucket": "oral_paraphrase", "query": "鼻腔堵住了", "expected": ["鼻塞"]},
+    {"id": "v019", "bucket": "oral_paraphrase", "query": "清鼻涕止不住", "expected": ["流涕"]},
+    {"id": "v020", "bucket": "oral_paraphrase", "query": "没什么胃口", "expected": ["食欲不振"]},
+    {"id": "v021", "bucket": "oral_paraphrase", "query": "晚上辗转难眠", "expected": ["失眠"]},
+    {"id": "v022", "bucket": "oral_paraphrase", "query": "颅部持续性疼痛", "expected": ["头痛"]},
+
+    {"id": "m001", "bucket": "multi_symptom", "queries": ["体温升高", "干咳不止"], "expected": ["发热", "咳嗽"]},
+    {"id": "m002", "bucket": "multi_symptom", "queries": ["胸口发闷", "呼吸费力"], "expected": ["胸痛", "呼吸困难"]},
+    {"id": "m003", "bucket": "multi_symptom", "queries": ["脑袋胀痛", "恶心想吐"], "expected": ["头痛", "恶心"]},
+    {"id": "m004", "bucket": "multi_symptom", "queries": ["关节酸胀", "浑身没劲"], "expected": ["关节痛", "乏力"]},
+    {"id": "m005", "bucket": "multi_symptom", "queries": ["鼻腔堵住", "清鼻涕"], "expected": ["鼻塞", "流涕"]},
+    {"id": "m006", "bucket": "multi_symptom", "queries": ["皮肤上起红点", "发痒"], "expected": ["皮疹", "瘙痒"]},
+    {"id": "m007", "bucket": "multi_symptom", "queries": ["心跳快", "胸口闷"], "expected": ["心悸", "胸痛"]},
+    {"id": "m008", "bucket": "multi_symptom", "queries": ["肚子痛", "排稀便"], "expected": ["腹痛", "腹泻"]},
+
+    {"id": "e001", "bucket": "exact_standard", "query": "头痛", "expected": ["头痛"]},
+    {"id": "e002", "bucket": "exact_standard", "query": "发热", "expected": ["发热"]},
+    {"id": "e003", "bucket": "exact_standard", "query": "咳嗽", "expected": ["咳嗽"]},
+    {"id": "e004", "bucket": "exact_standard", "query": "呼吸困难", "expected": ["呼吸困难"]},
+    {"id": "e005", "bucket": "exact_standard", "query": "失眠", "expected": ["失眠"]},
+
+    {"id": "n001", "bucket": "hard_negative", "query": "今天天气真热", "expected": []},
+    {"id": "n002", "bucket": "hard_negative", "query": "工作压力好大", "expected": []},
+    {"id": "n003", "bucket": "hard_negative", "query": "孩子考试成绩不理想", "expected": []},
+    {"id": "n004", "bucket": "hard_negative", "query": "想预约下周体检", "expected": []},
+    {"id": "n005", "bucket": "hard_negative", "query": "医保怎么报销", "expected": []},
+
+    {"id": "c001", "bucket": "confusing_near", "query": "胸口刺痛", "expected": ["胸痛"], "note": "勿与心悸混淆"},
+    {"id": "c002", "bucket": "confusing_near", "query": "心慌不安", "expected": ["心悸"]},
+    {"id": "c003", "bucket": "confusing_near", "query": "眩晕恶心", "expected": ["头晕", "恶心"]},
+    {"id": "c004", "bucket": "confusing_near", "query": "腹痛腹泻", "expected": ["腹痛", "腹泻"]},
+    {"id": "c005", "bucket": "confusing_near", "query": "咽喉肿痛伴流涕", "expected": ["咽喉痛", "流涕"]}
+  ]
+}

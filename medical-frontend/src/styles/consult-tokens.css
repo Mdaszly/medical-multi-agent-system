@@ -1,0 +1,35 @@
+:root {
+  --consult-bg: #f9fafb;
+  --consult-surface: #ffffff;
+  --consult-surface-muted: #f3f4f6;
+  --consult-border: #e5e7eb;
+  --consult-border-light: #f3f4f6;
+  --consult-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --consult-shadow-md: 0 4px 16px rgba(13, 148, 136, 0.08);
+  --consult-text-primary: #1f2937;
+  --consult-text-secondary: #4b5563;
+  --consult-text-muted: #6b7280;
+  --consult-success: #059669;
+  --consult-success-bg: #ecfdf5;
+  --consult-warning: #d97706;
+  --consult-warning-bg: #fffbeb;
+  --consult-danger: #dc2626;
+  --consult-danger-bg: #fef2f2;
+  --consult-info: #0d9488;
+  --consult-info-bg: #ccfbf1;
+  --consult-radius: 8px;
+  --consult-radius-lg: 12px;
+  --consult-spacing-xs: 4px;
+  --consult-spacing-sm: 8px;
+  --consult-spacing-md: 16px;
+  --consult-spacing-lg: 20px;
+  --consult-spacing-xl: 24px;
+  --consult-transition: 0.2s ease;
+  --consult-glass: rgba(255, 255, 255, 0.85);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --consult-transition: 0s;
+  }
+}

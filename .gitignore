@@ -29,24 +29,33 @@ build/
 *.dylib
 vendor/
 
-# IDE
+# IDE / AI tools (local only, do not commit)
+.cursor/
+.trae/
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# Environment
+# Environment / secrets (never commit)
 .env
-.env.local
+.env.*
+!.env.*.example
+java/.env.local
+**/.env.local
 .env.production
 
 # OS
 .DS_Store
 Thumbs.db
 
+# Docker / local data volumes (compose maps ../../persistence-data)
+persistence-data/
+
 # Docker
 docker-compose.override.yml
+infra/.env
 
 # Logs
 *.log

@@ -1,0 +1,18 @@
+code,descriptionEn,descriptionCn,chapterCode,chapterName,sectionCode,sectionName,diseaseClass,drgCode,medicalInsurance
+G43,Migraine,偏头痛,VI,Diseases of the nervous system,G40-G47,Episodic and paroxysmal disorders,Neurology,1,true
+J00,Acute nasopharyngitis,急性鼻咽炎,IX,Diseases of the respiratory system,J00-J06,Acute upper respiratory infections,Respiratory,2,true
+J18,Pneumonia,肺炎,IX,Diseases of the respiratory system,J09-J18,Pneumonia and influenza,Respiratory,3,true
+K29,Gastritis and duodenitis,胃炎和十二指肠炎,XI,Diseases of the digestive system,K20-K31,Diseases of oesophagus, stomach and duodenum,Gastroenterology,4,true
+K52,Gastroenteritis and colitis,肠胃炎和结肠炎,XI,Diseases of the digestive system,K50-K52,Noninfective enteritis and colitis,Gastroenterology,5,true
+K35,Appendicitis,阑尾炎,XI,Diseases of the digestive system,K35-K38,Diseases of appendix,Gastroenterology,6,true
+I10,Essential hypertension,原发性高血压,IX,Diseases of the circulatory system,I10-I15,Hypertensive diseases,Cardiology,7,true
+D50,Iron deficiency anaemia,缺铁性贫血,III,Diseases of the blood and blood-forming organs,D50-D89,Diseases of the blood and blood-forming organs,Hematology,8,true
+I20,Angina pectoris,心绞痛,IX,Diseases of the circulatory system,I20-I25,Ischaemic heart diseases,Cardiology,9,true
+I49,Other cardiac arrhythmias,其他心律失常,IX,Diseases of the circulatory system,I30-I52,Other forms of heart disease,Cardiology,10,true
+M19,Arthrosis,关节病,VI,Diseases of the musculoskeletal system,M15-M19,Arthroses,Rheumatology,11,true
+T78,Adverse effects, adverse reactions,不良反应,XX,Diseases of the skin and subcutaneous tissue,T00-T98,Injury, poisoning and certain other consequences,Toxicology,12,false
+L30,Other and unspecified dermatitis,其他皮炎, XII,Diseases of the skin and subcutaneous tissue,L20-L30,Dermatitis and eczema,Dermatology,13,true
+J03,Acute tonsillitis,急性扁桃体炎,IX,Diseases of the respiratory system,J00-J06,Acute upper respiratory infections,Respiratory,14,true
+J30,Vasomotor and allergic rhinitis,血管舒缩性鼻炎和过敏性鼻炎,IX,Diseases of the respiratory system,J30-J39,Other diseases of respiratory system,Respiratory,15,true
+K30,Dyspepsia,消化不良,XI,Diseases of the digestive system,K20-K31,Diseases of oesophagus, stomach and duodenum,Gastroenterology,16,false
+G47,Sleep disorders,睡眠障碍,VI,Diseases of the nervous system,G40-G47,Episodic and paroxysmal disorders,Neurology,17,true

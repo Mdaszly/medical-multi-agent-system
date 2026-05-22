@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { House, User, Document, SwitchButton, ChatDotRound, OfficeBuilding } from '@element-plus/icons-vue'
+import { House, User, Document, SwitchButton, ChatDotRound, OfficeBuilding, FirstAidKit } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -12,6 +12,7 @@ const menuItems = [
   { path: '/patient/doctors', title: '预约挂号', icon: OfficeBuilding },
   { path: '/patient/my-appointments', title: '我的预约', icon: Document },
   { path: '/patient/consult', title: '线上问诊', icon: ChatDotRound },
+  { path: '/patient/health-profile', title: '健康档案', icon: FirstAidKit },
   { path: '/patient/prescriptions', title: '我的处方', icon: Document },
   { path: '/patient/payments', title: '我的账单', icon: Document },
   { path: '/patient/profile', title: '个人中心', icon: User },
