@@ -143,6 +143,11 @@ public class SlotServiceImpl implements SlotService {
             slot.setAvailableSlots(slot.getAvailableSlots() + diff);
         }
 
+        // 确保 version 字段有值，如果为 null 则设置为 0
+        if (slot.getVersion() == null) {
+            slot.setVersion(0);
+        }
+
         slotMapper.updateById(slot);
         log.info("号源更新成功: id={}", id);
     }

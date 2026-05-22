@@ -52,7 +52,7 @@ const handleRegister = async () => {
     ElMessage.warning('管理员密码长度不能少于8位')
     return
   }
-  
+
   loading.value = true
   try {
     const body: API.AuthRegisterRequest = {
@@ -71,10 +71,10 @@ const handleRegister = async () => {
     }
     if (registerForm.userRole === 'admin') {
       await registerAdmin(body)
-      ElMessage.success('临时管理员注册成功！登录后需由正式管理员升级为正式账号。')
+      ElMessage.success('临时管理员注册成功，登录后需由正式管理员升级为正式账号')
     } else {
       await register(body)
-      ElMessage.success('注册成功，请登录！')
+      ElMessage.success('注册成功，请登录')
     }
     router.push('/auth/login')
   } catch (error) {
@@ -87,9 +87,13 @@ const handleRegister = async () => {
 
 <template>
   <AuthLayout>
-    <div class="register-form">
-      <h2>注册</h2>
-      <el-form :model="registerForm" label-width="100px">
+    <div class="auth-form register-form">
+      <header class="form-header">
+        <h2>账号注册</h2>
+        <p class="form-desc">请填写真实信息完成注册，医护人员需补充执业信息</p>
+      </header>
+
+      <el-form :model="registerForm" label-width="100px" label-position="right" class="auth-el-form">
         <el-form-item label="角色">
           <el-radio-group v-model="registerForm.userRole">
             <el-radio value="user">患者</el-radio>
@@ -97,36 +101,48 @@ const handleRegister = async () => {
             <el-radio value="pharmacist">药师</el-radio>
             <el-radio value="admin">
               管理员
-              <el-tag size="small" type="warning" style="margin-left: 6px;">临时</el-tag>
+              <el-tag size="small" type="warning" class="role-tag-temp">临时</el-tag>
             </el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="姓名">
-          <el-input v-model="registerForm.userName" placeholder="请输入姓名" />
+          <el-input v-model="registerForm.userName" placeholder="请输入姓名" autocomplete="name" />
         </el-form-item>
         <el-form-item label="账号">
-          <el-input v-model="registerForm.userAccount" placeholder="请输入账号" />
+          <el-input v-model="registerForm.userAccount" placeholder="请输入账号" autocomplete="username" />
         </el-form-item>
         <el-form-item label="密码">
-          <el-input v-model="registerForm.userPassword" type="password" placeholder="请输入密码（至少8位）" />
+          <el-input
+            v-model="registerForm.userPassword"
+            type="password"
+            placeholder="请输入密码（至少8位）"
+            show-password
+            autocomplete="new-password"
+          />
         </el-form-item>
         <el-form-item label="确认密码">
-          <el-input v-model="registerForm.confirmPassword" type="password" placeholder="请再次输入密码" />
+          <el-input
+            v-model="registerForm.confirmPassword"
+            type="password"
+            placeholder="请再次输入密码"
+            show-password
+            autocomplete="new-password"
+          />
         </el-form-item>
         <el-form-item v-if="registerForm.userRole !== 'admin'" label="手机号">
-          <el-input v-model="registerForm.phone" placeholder="请输入手机号（选填）" />
+          <el-input v-model="registerForm.phone" placeholder="请输入手机号（选填）" autocomplete="tel" />
         </el-form-item>
         <template v-if="registerForm.userRole === 'admin'">
           <el-alert
-            title="提示：通过公开注册的管理员账号默认标记为'临时管理员'，权限与正式管理员相同。"
+            title="通过公开注册的管理员账号默认标记为「临时管理员」，权限与正式管理员相同。"
             type="warning"
             :closable="false"
             show-icon
-            style="margin-bottom: 16px;"
+            class="role-alert"
           />
         </template>
         <template v-if="registerForm.userRole === 'doctor'">
-          <el-form-item label="执业证书编号">
+          <el-form-item label="执业证书">
             <el-input v-model="registerForm.licenseNo" placeholder="请输入执业证书编号" />
           </el-form-item>
           <el-form-item label="职称">
@@ -142,39 +158,104 @@ const handleRegister = async () => {
         </template>
         <template v-if="registerForm.userRole === 'pharmacist'">
           <el-alert
-            title="提示：药师注册后可进入药师工作台处理处方发药任务。"
+            title="药师注册后可进入药师工作台，处理处方发药相关任务。"
             type="info"
             :closable="false"
             show-icon
-            style="margin-bottom: 16px;"
+            class="role-alert"
           />
         </template>
-        <el-form-item>
-          <el-button type="primary" :loading="loading" @click="handleRegister" style="width: 100%;">注册</el-button>
+        <el-form-item class="submit-item">
+          <el-button
+            type="primary"
+            :loading="loading"
+            class="submit-btn"
+            @click="handleRegister"
+          >
+            注册
+          </el-button>
         </el-form-item>
       </el-form>
-      <div class="login-link">
+
+      <div class="auth-switch-link">
         <span>已有账号？</span>
-        <router-link to="/auth/login">立即登录</router-link>
+        <router-link to="/auth/login" class="link-primary">立即登录</router-link>
       </div>
     </div>
   </AuthLayout>
 </template>
 
 <style scoped>
-.register-form h2 {
-  margin-bottom: 30px;
-  color: #1f2937;
+.form-header {
+  margin-bottom: 24px;
+  text-align: center;
 }
 
-.login-link {
+.form-header h2 {
+  margin: 0 0 8px;
+  font-size: 22px;
+  font-weight: 600;
+  color: #1e3a4a;
+}
+
+.form-desc {
+  margin: 0;
+  font-size: 14px;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.role-tag-temp {
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.role-alert {
+  margin-bottom: 16px;
+}
+
+.auth-el-form :deep(.el-form-item__label) {
+  color: #475569;
+  font-weight: 500;
+}
+
+.submit-item {
+  margin-bottom: 0;
+}
+
+.submit-item :deep(.el-form-item__content) {
+  margin-left: 0 !important;
+}
+
+.submit-btn {
+  width: 100%;
+  min-height: 44px;
+  font-size: 15px;
+  letter-spacing: 0.05em;
+}
+
+.auth-switch-link {
   margin-top: 20px;
-  color: #6b7280;
+  text-align: center;
+  font-size: 14px;
+  color: #64748b;
 }
 
-.login-link a {
-  color: #06b6d4;
+.link-primary {
+  color: #0d9488;
   text-decoration: none;
-  margin-left: 5px;
+  margin-left: 4px;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.link-primary:hover {
+  color: #0f766e;
+  text-decoration: underline;
+}
+
+.register-form :deep(.el-radio-group) {
+  flex-wrap: wrap;
+  gap: 4px 0;
 }
 </style>

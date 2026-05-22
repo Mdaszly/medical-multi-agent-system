@@ -14,6 +14,7 @@ import com.medical.model.entity.User;
 import com.medical.model.vo.AuthLoginVO;
 import com.medical.model.vo.AuthRegisterVO;
 import com.medical.service.AuthService;
+import com.medical.utils.AuthSessionHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -34,6 +35,7 @@ public class AuthServiceImpl implements AuthService {
 
     private final UserMapper userMapper;
     private final DoctorMapper doctorMapper;
+    private final AuthSessionHelper authSessionHelper;
 
     @Override
     @Transactional
@@ -276,7 +278,7 @@ public class AuthServiceImpl implements AuthService {
                 throw new BusinessException(ErrorCode.PARAM_ERROR, "密码错误");
             }
 
-            StpUtil.login(user.getId());
+            authSessionHelper.loginAsUser(user);
             String token = StpUtil.getTokenValue();
 
             log.info("User logged in successfully: id={}, account={}, role={}", 
@@ -301,7 +303,7 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "密码错误");
         }
 
-        StpUtil.login(doctor.getId());
+        authSessionHelper.loginAsDoctor(doctor);
         String token = StpUtil.getTokenValue();
 
         log.info("Doctor logged in successfully: id={}, account={}, name={}", 

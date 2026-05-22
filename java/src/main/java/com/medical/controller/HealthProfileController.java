@@ -11,6 +11,7 @@ import com.medical.model.entity.HealthProfile;
 import com.medical.model.entity.User;
 import com.medical.model.vo.HealthProfileVO;
 import com.medical.mapper.UserMapper;
+import com.medical.utils.AuthSessionHelper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -27,6 +28,7 @@ public class HealthProfileController {
 
     private final HealthProfileMapper healthProfileMapper;
     private final UserMapper userMapper;
+    private final AuthSessionHelper authSessionHelper;
 
     @GetMapping("/get")
     @Operation(summary = "获取健康档案", description = "根据用户ID获取健康档案")
@@ -36,7 +38,7 @@ public class HealthProfileController {
             @RequestParam(value = "userId", required = false) Long userId) {
         
         Long currentUserId = cn.dev33.satoken.stp.StpUtil.getLoginIdAsLong();
-        String currentRole = (String) cn.dev33.satoken.stp.StpUtil.getSession().get("userRole");
+        String currentRole = authSessionHelper.getCurrentRole();
         
         // 确定要查询的用户ID
         Long targetUserId = userId != null ? userId : currentUserId;
@@ -66,7 +68,7 @@ public class HealthProfileController {
             @RequestBody HealthProfile request) {
         
         Long currentUserId = cn.dev33.satoken.stp.StpUtil.getLoginIdAsLong();
-        String currentRole = (String) cn.dev33.satoken.stp.StpUtil.getSession().get("userRole");
+        String currentRole = authSessionHelper.getCurrentRole();
         
         // 权限校验
         if (!UserConstant.ADMIN_ROLE.equals(currentRole) && 
@@ -105,7 +107,7 @@ public class HealthProfileController {
             @RequestBody HealthProfile request) {
         
         Long currentUserId = cn.dev33.satoken.stp.StpUtil.getLoginIdAsLong();
-        String currentRole = (String) cn.dev33.satoken.stp.StpUtil.getSession().get("userRole");
+        String currentRole = authSessionHelper.getCurrentRole();
         
         // 用户只能为自己创建健康档案
         if (!UserConstant.ADMIN_ROLE.equals(currentRole) && 

@@ -108,16 +108,10 @@ const routes: RouteRecordRaw[] = [
         meta: { title: "个人中心" },
       },
       {
-        path: "consult",
+        path: "consult/:sessionId?",
         name: "Consult",
         component: () => import("@/views/patient/ConsultPage.vue"),
         meta: { title: "线上问诊" },
-      },
-      {
-        path: "consult/:sessionId",
-        name: "ConsultSession",
-        component: () => import("@/views/patient/ConsultSessionPage.vue"),
-        meta: { title: "问诊详情" },
       },
     ],
   },
@@ -292,9 +286,15 @@ router.beforeEach((to) => {
     return getHomeRoute(authStore.userRole);
   }
 
-  // 检查角色权限
-  if (to.meta.roles && Array.isArray(to.meta.roles)) {
-    if (!to.meta.roles.includes(authStore.userRole)) {
+  // 检查角色权限（合并父级 meta.roles，避免子路由未继承导致越权访问）
+  const requiredRoles = to.matched
+    .map((record) => record.meta.roles)
+    .filter((roles): roles is string[] => Array.isArray(roles));
+  if (requiredRoles.length > 0) {
+    const allowed = requiredRoles.some((roles) =>
+      roles.includes(authStore.userRole),
+    );
+    if (!allowed) {
       return getHomeRoute(authStore.userRole);
     }
   }

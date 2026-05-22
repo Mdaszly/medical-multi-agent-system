@@ -55,6 +55,24 @@ public class UserVO {
         return vo;
     }
 
+    /** 当前登录用户查看/编辑自己的资料时不脱敏 */
+    public static UserVO fromEntityForOwner(User user) {
+        if (user == null) {
+            return null;
+        }
+        UserVO vo = new UserVO();
+        vo.setId(user.getId());
+        vo.setUserAccount(user.getUserAccount());
+        vo.setUserName(user.getUserName());
+        vo.setUserRole(user.getUserRole());
+        vo.setPhone(user.getPhone());
+        vo.setEmail(user.getEmail());
+        vo.setGender(user.getGender());
+        vo.setAge(calculateAge(user.getBirthDate()));
+        vo.setCreateTime(user.getCreateTime());
+        return vo;
+    }
+
     private static String desensitizePhone(String phone) {
         if (phone == null || phone.length() < 11) {
             return phone;

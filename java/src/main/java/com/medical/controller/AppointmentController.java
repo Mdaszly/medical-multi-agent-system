@@ -13,6 +13,7 @@ import com.medical.model.vo.AppointmentVO;
 import com.medical.model.vo.DepartmentDateStatusVO;
 import com.medical.model.vo.DepartmentDoctorBookingVO;
 import com.medical.service.AppointmentService;
+import com.medical.utils.AuthSessionHelper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -33,6 +34,7 @@ import java.util.List;
 public class AppointmentController {
 
     private final AppointmentService appointmentService;
+    private final AuthSessionHelper authSessionHelper;
 
     /**
      * 创建预约
@@ -82,23 +84,22 @@ public class AppointmentController {
             @RequestParam("id") Long id) {
         log.info("获取预约详情: id={}", id);
         
-        // 获取当前登录用户ID和角色
         Long currentUserId = cn.dev33.satoken.stp.StpUtil.getLoginIdAsLong();
-        String currentUserRole = (String) cn.dev33.satoken.stp.StpUtil.getSession().get("userRole");
+        String currentUserRole = authSessionHelper.getCurrentRole();
         
         AppointmentVO appointment = appointmentService.getAppointmentById(id);
         
         // 权限校验：非管理员只能查看自己相关的预约
         if (!UserConstant.ADMIN_ROLE.equals(currentUserRole)) {
-            // 用户角色：只能查看自己的预约
             if (UserConstant.USER_ROLE.equals(currentUserRole) && 
                 !currentUserId.equals(appointment.getUserId())) {
                 throw new com.medical.exception.BusinessException(com.medical.common.ErrorCode.NO_AUTH, "无权查看此预约");
             }
-            // 医生角色：只能查看自己接诊的预约
-            if (UserConstant.DOCTOR_ROLE.equals(currentUserRole) && 
-                !currentUserId.equals(appointment.getDoctorId())) {
-                throw new com.medical.exception.BusinessException(com.medical.common.ErrorCode.NO_AUTH, "无权查看此预约");
+            if (UserConstant.DOCTOR_ROLE.equals(currentUserRole)) {
+                Long doctorId = authSessionHelper.getCurrentDoctorId();
+                if (doctorId == null || !doctorId.equals(appointment.getDoctorId())) {
+                    throw new com.medical.exception.BusinessException(com.medical.common.ErrorCode.NO_AUTH, "无权查看此预约");
+                }
             }
         }
         

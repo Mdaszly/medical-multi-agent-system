@@ -14,7 +14,7 @@ const menuItems = [
   { path: '/patient/consult', title: '线上问诊', icon: ChatDotRound },
   { path: '/patient/prescriptions', title: '我的处方', icon: Document },
   { path: '/patient/payments', title: '我的账单', icon: Document },
-  { path: '/patient/profile', title: '个人中心', icon: User }
+  { path: '/patient/profile', title: '个人中心', icon: User },
 ]
 
 const handleLogout = () => {
@@ -27,27 +27,30 @@ const handleLogout = () => {
   <el-container class="patient-layout">
     <el-aside width="200px" class="aside">
       <div class="logo">
-        <h2>🏥 门诊系统</h2>
+        <h2 class="logo-text">医疗门诊系统</h2>
+        <span class="logo-sub">智慧医疗服务</span>
       </div>
       <el-menu
         :default-active="route.path"
-        class="menu"
+        class="menu patient-side-menu"
         router
         background-color="#06b6d4"
         text-color="#ffffff"
         active-text-color="#ffffff"
       >
-        <el-menu-item 
-          v-for="item in menuItems" 
-          :key="item.path" 
+        <el-menu-item
+          v-for="item in menuItems"
+          :key="item.path"
           :index="item.path"
+          class="nav-item-standard"
+          :class="{ 'nav-item-consult': item.path === '/patient/consult' }"
         >
-          <el-icon><component :is="item.icon" /></el-icon>
+          <el-icon aria-hidden="true"><component :is="item.icon" /></el-icon>
           <span>{{ item.title }}</span>
         </el-menu-item>
       </el-menu>
     </el-aside>
-    
+
     <el-container>
       <el-header class="header">
         <div class="header-left">
@@ -70,7 +73,7 @@ const handleLogout = () => {
           </el-dropdown>
         </div>
       </el-header>
-      
+
       <el-main class="main">
         <router-view />
       </el-main>
@@ -84,23 +87,55 @@ const handleLogout = () => {
 }
 
 .aside {
-  background: #06b6d4;
+  background: linear-gradient(180deg, #0891b2 0%, #06b6d4 48%, #0e7490 100%);
+  box-shadow: 2px 0 12px rgba(8, 145, 178, 0.15);
 }
 
 .logo {
-  padding: 20px;
+  padding: 18px 16px;
   text-align: center;
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-.logo h2 {
-  color: white;
-  font-size: 18px;
-  margin: 0;
+.logo-text {
+  color: #fff;
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0 0 4px;
+  letter-spacing: 0.04em;
+}
+
+.logo-sub {
+  display: block;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.75);
+  letter-spacing: 0.08em;
 }
 
 .menu {
   border: none;
+  padding-top: 4px;
+}
+
+.patient-side-menu :deep(.nav-item-standard) {
+  margin: 2px 8px;
+  border-radius: 8px;
+  min-height: 44px;
+  transition: background 0.2s ease;
+}
+
+.patient-side-menu :deep(.nav-item-standard:hover) {
+  background: rgba(255, 255, 255, 0.12) !important;
+}
+
+.patient-side-menu :deep(.nav-item-standard.is-active) {
+  background: rgba(255, 255, 255, 0.2) !important;
+  font-weight: 600;
+}
+
+/* 侧栏问诊项：轻量高亮，主入口在首页 */
+.patient-side-menu :deep(.nav-item-consult.is-active) {
+  background: rgba(255, 255, 255, 0.25) !important;
 }
 
 .header {

@@ -63,10 +63,6 @@ const handleToggleStatus = async (user: any) => {
   }
 }
 
-const handleEdit = (user: any) => {
-  ElMessage.info(`编辑用户: ${user.userName}`)
-}
-
 const handleDelete = async (user: any) => {
   try {
     await ElMessageBox.confirm('确定删除此用户吗？', '提示', {
@@ -137,18 +133,19 @@ onMounted(() => {
             <el-tag :type="statusMap[row.userStatus]?.type">{{ statusMap[row.userStatus]?.label }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="250">
+        <el-table-column label="操作" width="140" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" size="small" link @click="handleEdit(row)">编辑</el-button>
-            <el-button 
-              :type="row.userStatus === 1 ? 'warning' : 'success'" 
-              size="small" 
-              link 
-              @click="handleToggleStatus(row)"
-            >
-              {{ row.userStatus === 1 ? '禁用' : '启用' }}
-            </el-button>
-            <el-button type="danger" size="small" link @click="handleDelete(row)">删除</el-button>
+            <div class="table-actions">
+              <el-button
+                :type="row.userStatus === 1 ? 'warning' : 'success'"
+                size="small"
+                link
+                @click="handleToggleStatus(row)"
+              >
+                {{ row.userStatus === 1 ? '禁用' : '启用' }}
+              </el-button>
+              <el-button type="danger" size="small" link @click="handleDelete(row)">删除</el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -177,5 +174,29 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+
+.table-actions :deep(.el-button.is-link) {
+  min-height: 32px;
+  padding: 4px 0;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.table-actions :deep(.el-button.is-link:hover) {
+  opacity: 0.85;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .table-actions :deep(.el-button.is-link) {
+    transition: none;
+  }
 }
 </style>

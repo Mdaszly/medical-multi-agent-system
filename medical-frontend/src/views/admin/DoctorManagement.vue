@@ -47,10 +47,6 @@ const loadDoctors = async () => {
   }
 }
 
-const handleEdit = (doctor: any) => {
-  ElMessage.info(`编辑医生: ${doctor.doctorName}`)
-}
-
 const handleAddSchedule = (doctor: any) => {
   router.push({
     path: '/admin/schedule/add',
@@ -132,14 +128,20 @@ onMounted(() => {
             <el-tag :type="statusMap[row.workStatus]?.type">{{ statusMap[row.workStatus]?.label }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="320">
+        <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" size="small" link @click="handleEdit(row)">编辑</el-button>
-            <el-button type="info" size="small" link @click="handleAddSchedule(row)">添加排班</el-button>
-            <el-button :type="row.workStatus === 1 ? 'warning' : 'success'" size="small" link @click="handleToggleStatus(row)">
-              {{ row.workStatus === 1 ? '禁用' : '启用' }}
-            </el-button>
-            <el-button type="danger" size="small" link @click="handleDelete(row)">删除</el-button>
+            <div class="table-actions">
+              <el-button type="primary" size="small" link @click="handleAddSchedule(row)">添加排班</el-button>
+              <el-button
+                :type="row.workStatus === 1 ? 'warning' : 'success'"
+                size="small"
+                link
+                @click="handleToggleStatus(row)"
+              >
+                {{ row.workStatus === 1 ? '禁用' : '启用' }}
+              </el-button>
+              <el-button type="danger" size="small" link @click="handleDelete(row)">删除</el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -173,5 +175,29 @@ onMounted(() => {
 .header-right {
   display: flex;
   align-items: center;
+}
+
+.table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+
+.table-actions :deep(.el-button.is-link) {
+  min-height: 32px;
+  padding: 4px 0;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.table-actions :deep(.el-button.is-link:hover) {
+  opacity: 0.85;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .table-actions :deep(.el-button.is-link) {
+    transition: none;
+  }
 }
 </style>

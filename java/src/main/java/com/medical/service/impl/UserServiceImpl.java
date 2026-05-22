@@ -78,7 +78,8 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException(ErrorCode.NOT_LOGIN);
         }
         Long userId = StpUtil.getLoginIdAsLong();
-        return getUserById(userId);
+        User user = getUserEntityById(userId);
+        return UserVO.fromEntityForOwner(user);
     }
 
     @Override
@@ -173,6 +174,16 @@ public class UserServiceImpl implements UserService {
         if (request.getGender() != null) {
             user.setGender(request.getGender());
         }
+        if (StringUtils.hasText(request.getPhone())) {
+            validatePhone(request.getPhone());
+            checkPhoneExists(request.getPhone(), id);
+            user.setPhone(request.getPhone());
+        }
+        if (StringUtils.hasText(request.getEmail())) {
+            validateEmail(request.getEmail());
+            checkEmailExists(request.getEmail(), id);
+            user.setEmail(request.getEmail());
+        }
         user.setUpdateTime(LocalDateTime.now());
         
         int result = userMapper.updateById(user);
@@ -180,7 +191,7 @@ public class UserServiceImpl implements UserService {
         
         redisCacheUtil.delete(String.format(RedisKeyConstant.USER_INFO, id));
         log.info("Profile updated successfully: id={}", id);
-        return UserVO.fromEntity(user);
+        return UserVO.fromEntityForOwner(user);
     }
 
     @Override

@@ -5,10 +5,7 @@ import com.medical.annotation.AuthCheck;
 import com.medical.common.ErrorCode;
 import com.medical.constant.UserConstant;
 import com.medical.exception.BusinessException;
-import com.medical.mapper.DoctorMapper;
-import com.medical.mapper.UserMapper;
-import com.medical.model.entity.Doctor;
-import com.medical.model.entity.User;
+import com.medical.utils.AuthSessionHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -18,8 +15,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
 
 /**
  * 权限校验拦截器
@@ -44,33 +39,15 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class AuthInterceptor {
 
-    private final UserMapper userMapper;
-    private final DoctorMapper doctorMapper;
+    private final AuthSessionHelper authSessionHelper;
 
     @Around("@annotation(authCheck)")
     public Object doInterceptor(ProceedingJoinPoint joinPoint, AuthCheck authCheck) throws Throwable {
         StpUtil.checkLogin();
 
         Long loginId = StpUtil.getLoginIdAsLong();
-        String currentRole = null;
-
-        // 优先检查是否为医生（医生账号在user表和doctor表都存在）
-        Doctor doctor = doctorMapper.selectById(loginId);
-        if (doctor != null) {
-            currentRole = UserConstant.DOCTOR_ROLE;
-            log.info("Authenticated Doctor: id={}, role={}", loginId, currentRole);
-        } else {
-            User user = userMapper.selectById(loginId);
-            if (user != null) {
-                currentRole = user.getUserRole();
-                log.info("Authenticated User: id={}, role={}", loginId, currentRole);
-            }
-        }
-
-        if (currentRole == null) {
-            log.warn("User not found: loginId={}", loginId);
-            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
-        }
+        String currentRole = authSessionHelper.getCurrentRole();
+        log.info("Authenticated: id={}, role={}, loginType={}", loginId, currentRole, authSessionHelper.getLoginType());
 
         // 权限校验
         if (!hasPermission(authCheck, currentRole)) {

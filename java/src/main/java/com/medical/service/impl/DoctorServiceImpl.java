@@ -15,6 +15,7 @@ import com.medical.model.entity.Doctor;
 import com.medical.model.vo.DoctorVO;
 import com.medical.service.DoctorCacheManager;
 import com.medical.service.DoctorService;
+import com.medical.utils.AuthSessionHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -39,7 +40,8 @@ import java.util.stream.Collectors;
 public class DoctorServiceImpl implements DoctorService {
 
     private final DoctorMapper doctorMapper;
-    
+    private final AuthSessionHelper authSessionHelper;
+
     /**
      * 医生缓存管理器，提供缓存查询、更新、删除等功能
      */
@@ -64,7 +66,8 @@ public class DoctorServiceImpl implements DoctorService {
         if (!StpUtil.isLogin()) {
             throw new BusinessException(ErrorCode.NOT_LOGIN);
         }
-        Long doctorId = StpUtil.getLoginIdAsLong();
+        Long doctorId = authSessionHelper.getCurrentDoctorId();
+        ThrowUtils.throwIf(doctorId == null, ErrorCode.USER_NOT_FOUND, "医生不存在");
         return getDoctorById(doctorId);
     }
 

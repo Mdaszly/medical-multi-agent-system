@@ -24,6 +24,7 @@ import com.medical.service.DrugService;
 import com.medical.service.FeeItemService;
 import com.medical.service.PaymentService;
 import com.medical.service.PrescriptionService;
+import com.medical.utils.AuthSessionHelper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -57,6 +58,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
     private final BillService billService;
     private final AppointmentService appointmentService;
     private final PaymentService paymentService;
+    private final AuthSessionHelper authSessionHelper;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
@@ -336,8 +338,8 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         ThrowUtils.throwIf(!prescription.getStatus().equals(PrescriptionConstant.PRESCRIPTION_STATUS_PENDING),
                 ErrorCode.PARAM_ERROR, "只有待审核状态的处方可以修改");
 
-        Long doctorId = StpUtil.getLoginIdAsLong();
-        ThrowUtils.throwIf(!prescription.getDoctorId().equals(doctorId),
+        Long doctorId = authSessionHelper.getCurrentDoctorId();
+        ThrowUtils.throwIf(doctorId == null || !prescription.getDoctorId().equals(doctorId),
                 ErrorCode.NO_PERMISSION, "只能修改自己开具的处方");
 
         if (StringUtils.hasText(request.getDiagnosis())) {

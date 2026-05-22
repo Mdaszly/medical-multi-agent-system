@@ -3,7 +3,9 @@ package com.medical.controller;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.medical.annotation.AuthCheck;
 import com.medical.common.BaseResponse;
+import com.medical.common.ErrorCode;
 import com.medical.common.ResultUtils;
+import com.medical.exception.BusinessException;
 import com.medical.constant.UserConstant;
 import com.medical.model.dto.prescription.PrescriptionAddRequest;
 import com.medical.model.dto.prescription.PrescriptionQueryRequest;
@@ -11,6 +13,7 @@ import com.medical.model.dto.prescription.PrescriptionStatusUpdateRequest;
 import com.medical.model.dto.prescription.PrescriptionUpdateRequest;
 import com.medical.model.vo.PrescriptionVO;
 import com.medical.service.PrescriptionService;
+import com.medical.utils.AuthSessionHelper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -28,6 +31,7 @@ import java.util.List;
 public class PrescriptionController {
 
     private final PrescriptionService prescriptionService;
+    private final AuthSessionHelper authSessionHelper;
 
     @PostMapping("/create")
     @Operation(summary = "创建处方", description = "医生为患者开具处方，处方状态直接为已审核")
@@ -74,7 +78,10 @@ public class PrescriptionController {
     @Operation(summary = "查询医生处方", description = "查询医生开具的处方列表")
     @AuthCheck(mustRoles = {UserConstant.DOCTOR_ROLE, UserConstant.ADMIN_ROLE})
     public BaseResponse<List<PrescriptionVO>> listPrescriptionByDoctor() {
-        Long doctorId = cn.dev33.satoken.stp.StpUtil.getLoginIdAsLong();
+        Long doctorId = authSessionHelper.getCurrentDoctorId();
+        if (doctorId == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND, "医生不存在");
+        }
         log.info("查询医生处方: doctorId={}", doctorId);
         List<PrescriptionVO> prescriptions = prescriptionService.listPrescriptionByDoctor(doctorId);
         return ResultUtils.success(prescriptions);
