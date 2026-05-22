@@ -1,0 +1,8 @@
+# 复制本文件为 mvn-idea.local.ps1（同目录），按本机路径修改。
+# mvn-idea.local.ps1 已被 .gitignore 忽略，不会推送到 GitHub。
+
+# IDEA 捆绑 Maven 示例（路径请改成你的安装目录）:
+# $env:MAVEN_HOME = "C:\Program Files\JetBrains\IntelliJ IDEA 2025.1\plugins\maven\lib\maven3"
+
+# JDK 17+ 示例:
+# $env:JAVA_HOME = "C:\Program Files\Java\jdk-21"

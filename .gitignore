@@ -69,3 +69,6 @@ logs/
 .coverage
 htmlcov/
 .pytest_cache/
+
+# Local Maven/JDK paths (see scripts/mvn-idea.local.ps1.example)
+scripts/mvn-idea.local.ps1
