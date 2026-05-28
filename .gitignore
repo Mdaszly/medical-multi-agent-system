@@ -72,3 +72,9 @@ htmlcov/
 
 # Local Maven/JDK paths (see scripts/mvn-idea.local.ps1.example)
 scripts/mvn-idea.local.ps1
+
+# Local docs (personal collection, not for repo)
+docs/AIGC恋爱题材AI漫剧信息采集.md
+
+# Personal interview prep & resume (local only, not for public repo)
+interview/

@@ -314,6 +314,10 @@ Intake → Diagnosis ⇄ Intake(信息不足时回退) → Treatment → Coding 
 
 问诊前/中通过 **症状解析** 将口语映射到标准症状节点，再由 Java **`KnowledgeGraphFacade`** 查询 Neo4j（Cypher 多跳），为诊断 Agent 提供证据对象 **`GraphEvidence`**（非 Python GraphRAG 服务）。
 
+### 9.4 会话记忆（Redis List）
+
+增强问诊下：**MySQL** 持久化会话消息；**Redis List**（`medical:chat:memory:{sessionId}`）供 Spring AI `ChatMemory` 缓存最近轮次；Pipeline 侧 `chatHistory` 仍从 DB 加载。选型说明见 [interview/06-数据结构选型-问诊会话记忆.md](../interview/06-数据结构选型-问诊会话记忆.md)（本地 `interview/`，已 gitignore）。
+
 ---
 
 ## 10. 知识图谱与症状解析
@@ -515,6 +519,15 @@ docker compose restart neo4j
 | 症状解析 | `java/.../service/kg/symptom/` |
 | 图谱 | `java/.../knowledgegraph/` |
 | 前端路由 | `medical-frontend/src/router/` |
+
+### 15.5 面试 / 答辩材料（本地）
+
+口述稿与简历索引在仓库根目录 **`interview/`**（通常已 `.gitignore`，不提交 Git）。公开可链文档：
+
+| 文档 | 说明 |
+|------|------|
+| [../interview/README.md](../interview/README.md) | 本地面试索引（含 01–06 篇目） |
+| [医院排班查询接口性能优化项目.md](医院排班查询接口性能优化项目.md) | 排班接口 Redis 缓存与压测（可公开） |
 
 ---
 

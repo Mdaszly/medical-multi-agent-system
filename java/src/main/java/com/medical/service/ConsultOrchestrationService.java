@@ -22,6 +22,10 @@ import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+/**
+ * 增强版 AI 问诊对外编排：会话落库、Redis 记忆同步、Pipeline 路由、ICD 校验、SSE 流式输出。
+ * <p>仅在 {@code medical.ai.chat-type=enhanced} 时启用。</p>
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -39,6 +43,10 @@ public class ConsultOrchestrationService {
     private final IcdGroundingValidator icdGroundingValidator;
     private final ExecutorService streamExecutor = Executors.newCachedThreadPool();
 
+    /**
+     * ConsultVO consultSync(ConsultRequest request, Long userId)
+     * <p>同步问诊：存用户消息 → 同步 Redis → Pipeline 全链路 → 校验 ICD → 持久化助手回复。</p>
+     */
     public ConsultVO consultSync(ConsultRequest request, Long userId) throws Exception {
         String sessionId = resolveSessionId(userId, request.getSessionId(), request.getScene());
 
@@ -55,12 +63,20 @@ public class ConsultOrchestrationService {
         return vo;
     }
 
+    /**
+     * SseEmitter consultStream(ConsultRequest request, Long userId)
+     * <p>创建 SSE 连接并在后台线程执行 {@link #runStream}。</p>
+     */
     public SseEmitter consultStream(ConsultRequest request, Long userId) {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
         streamExecutor.execute(() -> runStream(request, userId, emitter));
         return emitter;
     }
 
+    /**
+     * void runStream(ConsultRequest request, Long userId, SseEmitter emitter)
+     * <p>流式路径：仅路由 + 工具增强 + LLM 流式生成 + 结构化解析，不走 Pipeline 的 Agent.process。</p>
+     */
     private void runStream(ConsultRequest request, Long userId, SseEmitter emitter) {
         try {
             String sessionId = resolveSessionId(userId, request.getSessionId(), request.getScene());
@@ -110,6 +126,10 @@ public class ConsultOrchestrationService {
         }
     }
 
+    /**
+     * void sendChunk(SseEmitter emitter, StringBuilder buffer, String chunk)
+     * <p>累积流式片段并通过 SSE {@code chunk} 事件推送给前端。</p>
+     */
     private void sendChunk(SseEmitter emitter, StringBuilder buffer, String chunk) {
         buffer.append(chunk);
         try {
@@ -119,6 +139,10 @@ public class ConsultOrchestrationService {
         }
     }
 
+    /**
+     * String buildStreamUserPrompt(ConsultRequest request, ClinicalState routed)
+     * <p>拼接历史对话、工具检索结果、当前问题与患者背景，作为流式 LLM 的用户侧 Prompt。</p>
+     */
     private String buildStreamUserPrompt(ConsultRequest request, ClinicalState routed) {
         StringBuilder sb = new StringBuilder();
         Object history = routed.getExtensions().get("chatHistory");
@@ -136,6 +160,10 @@ public class ConsultOrchestrationService {
         return sb.toString();
     }
 
+    /**
+     * void persistAssistantMessage(String sessionId, Long userId, ClinicalState state, ConsultVO vo)
+     * <p>将结构化问诊结果与助手回复写入会话消息表。</p>
+     */
     private void persistAssistantMessage(String sessionId, Long userId, ClinicalState state, ConsultVO vo)
             throws Exception {
         String metadataJson = state.getExtensions().get("consultResult") != null
@@ -152,6 +180,10 @@ public class ConsultOrchestrationService {
         );
     }
 
+    /**
+     * String resolveSessionId(Long userId, String sessionId, String scene)
+     * <p>校验已有会话归属，或按场景创建新会话。</p>
+     */
     private String resolveSessionId(Long userId, String sessionId, String scene) {
         if (StringUtils.hasText(sessionId)) {
             chatSessionService.getSessionForUser(sessionId, userId);

@@ -7,9 +7,14 @@ import org.springframework.util.StringUtils;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 内置静态医学知识库（演示/兜底），供 Spring AI {@link com.medical.tools.MedicalTools} 工具调用。
+ * <p>生产环境可替换为向量库或外部 RAG；当前为内存关键词匹配，无 Redis/DB 依赖。</p>
+ */
 @Service
 public class MedicalKnowledgeServiceImpl implements MedicalKnowledgeService {
 
+    /** 主题 + 正文条目，启动时加载到堆内存 */
     private static final List<Map<String, String>> KNOWLEDGE = List.of(
             Map.of("topic", "高血压", "content", "成人高血压管理强调生活方式干预、限盐、规律监测血压，用药需遵医嘱。"),
             Map.of("topic", "糖尿病", "content", "2型糖尿病需关注血糖、并发症筛查；二甲双胍为常用一线药物，需警惕低血糖与肾功能。"),
@@ -21,6 +26,10 @@ public class MedicalKnowledgeServiceImpl implements MedicalKnowledgeService {
             Map.of("topic", "运动", "content", "慢性病患者运动宜循序渐进，每周至少150分钟中等强度有氧运动。")
     );
 
+    /**
+     * String search(String query)
+     * <p>对 query 与每条知识的 topic/content 做双向子串匹配，命中则拼接为 Markdown 列表文本。</p>
+     */
     @Override
     public String search(String query) {
         if (!StringUtils.hasText(query)) {

@@ -24,6 +24,10 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * 知识图谱统一门面：症状解析/抽取 → Neo4j 查询 → {@link GraphEvidence}，
+ * 并对外提供供 LLM 工具与 {@link KnowledgeEnrichmentService} 使用的文本化 API。
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -36,6 +40,10 @@ public class KnowledgeGraphFacade {
     @Autowired(required = false)
     private SymptomResolver symptomResolver;
 
+    /**
+     * GraphEvidence extractAndQuery(String rawText)
+     * <p>从问诊原文解析症状集合，逐条查图谱（含模糊兜底），组装证据与 ICD 候选。</p>
+     */
     public GraphEvidence extractAndQuery(String rawText) {
         long start = System.currentTimeMillis();
         SymptomResolutionResult resolution = resolveSymptoms(rawText);
@@ -81,6 +89,7 @@ public class KnowledgeGraphFacade {
         return SymptomResolutionResult.builder().build();
     }
 
+    /** List&lt;SymptomDiagnosisRow&gt; queryBySymptomName(String symptomName) — Neo4j 精确症状-诊断查询 */
     public List<SymptomDiagnosisRow> queryBySymptomName(String symptomName) {
         if (!graphProperties.isEnabled() || !StringUtils.hasText(symptomName)) {
             return List.of();
@@ -93,6 +102,7 @@ public class KnowledgeGraphFacade {
         }
     }
 
+    /** List&lt;String&gt; suggestSymptoms(String prefix, int limit) — 症状名前缀联想 */
     public List<String> suggestSymptoms(String prefix, int limit) {
         if (!graphProperties.isEnabled() || !StringUtils.hasText(prefix)) {
             return List.of();
@@ -105,6 +115,7 @@ public class KnowledgeGraphFacade {
         }
     }
 
+    /** Optional&lt;SymptomDiagnosisRow&gt; lookupIcd(String code) — ICD 编码反查 */
     public Optional<SymptomDiagnosisRow> lookupIcd(String code) {
         if (!graphProperties.isEnabled() || !StringUtils.hasText(code)) {
             return Optional.empty();
@@ -117,6 +128,7 @@ public class KnowledgeGraphFacade {
         }
     }
 
+    /** String formatEvidenceText(GraphEvidence evidence) — 将图谱证据格式化为 LLM 约束性 Prompt 文本 */
     public String formatEvidenceText(GraphEvidence evidence) {
         if (evidence == null || evidence.getRows() == null || evidence.getRows().isEmpty()) {
             String trace = evidence != null && StringUtils.hasText(evidence.getSymptomResolutionTrace())
@@ -150,6 +162,7 @@ public class KnowledgeGraphFacade {
         return sb.toString();
     }
 
+    /** String querySymptomDiagnosisAsText(String symptomName) — 供 {@link com.medical.tools.MedicalTools} 调用 */
     public String querySymptomDiagnosisAsText(String symptomName) {
         return formatEvidenceText(GraphEvidence.builder()
                 .rows(queryBySymptomName(symptomName))
@@ -157,6 +170,7 @@ public class KnowledgeGraphFacade {
                 .build());
     }
 
+    /** String suggestSymptomsAsText(String prefix) */
     public String suggestSymptomsAsText(String prefix) {
         List<String> names = suggestSymptoms(prefix, graphProperties.getFuzzySymptomLimit());
         if (names.isEmpty()) {
@@ -165,6 +179,7 @@ public class KnowledgeGraphFacade {
         return "症状联想：" + String.join("、", names);
     }
 
+    /** String lookupIcdAsText(String code) */
     public String lookupIcdAsText(String code) {
         return lookupIcd(code)
                 .map(row -> row.getIcdCode() + " - " + nullToEmpty(row.getIcdDescription())

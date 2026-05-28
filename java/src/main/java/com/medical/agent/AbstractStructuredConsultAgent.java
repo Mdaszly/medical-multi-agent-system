@@ -17,6 +17,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * 结构化专科问诊 Agent 基类：图谱/工具预增强 → LLM JSON 输出 → 解析为 {@code consultResult} 与用户可读 {@code answer}。
+ */
 @Slf4j
 public abstract class AbstractStructuredConsultAgent extends BaseMedicalAgent {
 
@@ -31,11 +34,13 @@ public abstract class AbstractStructuredConsultAgent extends BaseMedicalAgent {
 
     protected abstract String systemPrompt();
 
+    /** void enrichContext(ClinicalState state) — 图谱 + 子类场景化工具 */
     protected void enrichContext(ClinicalState state) {
         enrichGraphContext(state);
         enrichAgentSpecificContext(state);
     }
 
+    /** void enrichGraphContext(ClinicalState state) — 委托 {@link KnowledgeEnrichmentService} */
     protected void enrichGraphContext(ClinicalState state) {
         if (knowledgeEnrichmentService != null) {
             knowledgeEnrichmentService.enrich(state, agentType());
@@ -61,6 +66,10 @@ public abstract class AbstractStructuredConsultAgent extends BaseMedicalAgent {
         return systemPrompt();
     }
 
+    /**
+     * ClinicalState process(ClinicalState state)
+     * <p>同步问诊主流程：增强上下文 → generate → applyLlmResponse。</p>
+     */
     @Override
     public ClinicalState process(ClinicalState state) {
         log.info("{} processing", agentType().getCode());
@@ -78,6 +87,10 @@ public abstract class AbstractStructuredConsultAgent extends BaseMedicalAgent {
         return state;
     }
 
+    /**
+     * void applyLlmResponse(ClinicalState state, String response)
+     * <p>清洗 LLM JSON，写入 diagnosis / consultResult / answer。</p>
+     */
     public void applyLlmResponse(ClinicalState state, String response) throws Exception {
         state.setCurrentAgent(agentType().getCode());
         String content = cleanJsonResponse(response);
@@ -91,6 +104,10 @@ public abstract class AbstractStructuredConsultAgent extends BaseMedicalAgent {
                 "风险等级: " + consultResult.getOrDefault("risk_level", "未知"));
     }
 
+    /**
+     * String buildUserPrompt(ClinicalState state)
+     * <p>拼接 chatHistory、toolContext、患者描述与 patientContext。</p>
+     */
     protected String buildUserPrompt(ClinicalState state) {
         StringBuilder sb = new StringBuilder();
         Object history = state.getExtensions().get("chatHistory");
@@ -110,6 +127,7 @@ public abstract class AbstractStructuredConsultAgent extends BaseMedicalAgent {
         return sb.toString();
     }
 
+    /** String renderAnswer(Map&lt;String, Object&gt; result, ClinicalState state) — 生成面向患者的自然语言答复 */
     protected String renderAnswer(Map<String, Object> result, ClinicalState state) {
         String conclusion = String.valueOf(result.getOrDefault("conclusion", ""));
         String department = String.valueOf(result.getOrDefault("recommended_department", "全科"));

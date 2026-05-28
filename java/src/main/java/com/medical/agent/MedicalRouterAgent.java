@@ -12,6 +12,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 问诊分诊 Router：用 LLM 将用户输入分类为 {@link com.medical.agent.enums.MedicalAgentType}，
+ * 结果写入 {@link com.medical.model.ClinicalState} 的 {@code targetAgent} 扩展字段。
+ */
 @Slf4j
 @Component
 public class MedicalRouterAgent extends BaseMedicalAgent {
@@ -34,16 +38,22 @@ public class MedicalRouterAgent extends BaseMedicalAgent {
         super(llmService, objectMapper);
     }
 
+    /** MedicalAgentType getAgentType() */
     @Override
     public MedicalAgentType getAgentType() {
         return MedicalAgentType.ROUTER;
     }
 
+    /** String getSystemMessage() */
     @Override
     public String getSystemMessage() {
         return SYSTEM_PROMPT;
     }
 
+    /**
+     * ClinicalState process(ClinicalState state)
+     * <p>调用 LLM 返回类型 code，解析后写入 {@code extensions.targetAgent}。</p>
+     */
     @Override
     public ClinicalState process(ClinicalState state) {
         log.info("MedicalRouterAgent processing");
@@ -67,6 +77,7 @@ public class MedicalRouterAgent extends BaseMedicalAgent {
         return state;
     }
 
+    /** void appendTrace(ClinicalState state, String agent, String action, String detail) */
     @SuppressWarnings("unchecked")
     private void appendTrace(ClinicalState state, String agent, String action, String detail) {
         List<Map<String, String>> trace = (List<Map<String, String>>) state.getExtensions()
