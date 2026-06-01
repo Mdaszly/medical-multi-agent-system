@@ -76,12 +76,16 @@ medical:
         vector-top-k: 5
         vector-min-score: 0.72
         vector-ambiguity-gap: 0.05
-        accept-min-confidence: 0.55
+        accept-min-confidence: 0.72
         llm-disambiguate: true
         llm-only-when-ambiguous: true
+        llm-require-vector-candidates: true
         embedding-model: text-embedding-v3
         build-index-on-startup: true
         embedding-batch-size: 16
+      clinical-span:
+        enabled: true
+        llm-enabled: false
 
 app:
   llm:

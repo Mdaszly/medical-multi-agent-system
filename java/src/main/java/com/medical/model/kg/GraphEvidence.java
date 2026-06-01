@@ -31,6 +31,15 @@ public class GraphEvidence {
     /** 语义解析轨迹（症状表述 → 标准名） */
     private String symptomResolutionTrace;
 
+    /** 送入 SymptomResolver 的临床文本 */
+    private String clinicalTextUsed;
+
+    /** 临床片段来源：STRUCTURED_FIELD / CHAT_SPAN / LLM_SPAN */
+    private String clinicalSpanSource;
+
+    /** 跳过图谱检索的原因码 */
+    private String graphSkipReason;
+
     @Builder.Default
     private List<com.medical.service.kg.symptom.SymptomMatch> symptomMatches = new ArrayList<>();
 

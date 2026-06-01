@@ -1,6 +1,8 @@
 package com.medical.controller;
 
 import com.medical.model.dto.kg.VectorTopKEvalRequest;
+import com.medical.service.kg.clinical.ClinicalSpanExtractionResult;
+import com.medical.service.kg.clinical.ClinicalSpanExtractor;
 import com.medical.service.kg.symptom.*;
 import com.medical.service.kg.symptom.eval.SymptomVectorTopKEvaluator;
 import com.medical.service.kg.symptom.eval.VectorEvalDataset;
@@ -28,6 +30,7 @@ import java.util.Map;
 public class SymptomResolverController {
 
     private final SymptomResolver symptomResolver;
+    private final ClinicalSpanExtractor clinicalSpanExtractor;
     private final SymptomVectorIndexBootstrap vectorIndexBootstrap;
     private final InMemorySymptomVectorIndex vectorIndex;
     private final SymptomVectorSearchService vectorSearchService;
@@ -37,15 +40,39 @@ public class SymptomResolverController {
 
     @PostMapping("/resolve")
     @Operation(summary = "解析用户症状表述为标准症状")
-    public ResponseEntity<SymptomResolutionResult> resolve(@RequestBody Map<String, String> body) {
+    public ResponseEntity<Object> resolve(@RequestBody Map<String, String> body) {
         String text = body == null ? null : body.get("text");
-        return ResponseEntity.ok(symptomResolver.resolve(text));
+        String structuredSymptom = body == null ? null : body.get("symptom");
+        return ResponseEntity.ok(resolveWithClinicalGate(structuredSymptom, text));
     }
 
     @GetMapping("/resolve")
     @Operation(summary = "GET 方式解析（便于调试）")
-    public ResponseEntity<SymptomResolutionResult> resolveGet(@RequestParam String text) {
-        return ResponseEntity.ok(symptomResolver.resolve(text));
+    public ResponseEntity<Object> resolveGet(
+            @RequestParam String text,
+            @RequestParam(required = false) String symptom) {
+        return ResponseEntity.ok(resolveWithClinicalGate(symptom, text));
+    }
+
+    private Object resolveWithClinicalGate(String structuredSymptom, String rawText) {
+        ClinicalSpanExtractionResult span = clinicalSpanExtractor.extract(structuredSymptom, rawText);
+        if (!span.isHasClinicalText()) {
+            return Map.of(
+                    "skipped", true,
+                    "skipReason", span.getSkipReason(),
+                    "traceSummary", span.getTraceSummary(),
+                    "matches", List.of(),
+                    "canonicalSymptomNames", List.of()
+            );
+        }
+        SymptomResolutionResult result = symptomResolver.resolve(span.getClinicalText());
+        return Map.of(
+                "skipped", false,
+                "clinicalTextUsed", span.getClinicalText(),
+                "clinicalSpanSource", span.getSource(),
+                "spanTrace", span.getTraceSummary(),
+                "resolution", result
+        );
     }
 
     @PostMapping("/index/rebuild")

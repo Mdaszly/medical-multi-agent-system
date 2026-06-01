@@ -5,6 +5,8 @@ import com.medical.config.MedicalGraphProperties;
 import com.medical.knowledgegraph.model.dto.SymptomDiagnosisRow;
 import com.medical.model.ClinicalState;
 import com.medical.model.kg.GraphEvidence;
+import com.medical.service.kg.clinical.ClinicalSpanExtractionResult;
+import com.medical.service.kg.clinical.ClinicalSpanExtractor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -31,6 +33,9 @@ class KnowledgeEnrichmentServiceTest {
     @Mock
     private KnowledgeGraphFacade knowledgeGraphFacade;
 
+    @Mock
+    private ClinicalSpanExtractor clinicalSpanExtractor;
+
     private KnowledgeEnrichmentService service;
 
     @BeforeEach
@@ -38,11 +43,31 @@ class KnowledgeEnrichmentServiceTest {
         MedicalGraphProperties props = new MedicalGraphProperties();
         props.setEnabled(true);
         props.setPreEnrich(true);
-        service = new KnowledgeEnrichmentService(knowledgeGraphFacade, props);
+        service = new KnowledgeEnrichmentService(knowledgeGraphFacade, clinicalSpanExtractor, props);
+
+        org.mockito.Mockito.lenient().when(clinicalSpanExtractor.extract(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(invocation -> {
+                    ClinicalState state = invocation.getArgument(0);
+                    String text = state.getRawInput();
+                    return ClinicalSpanExtractionResult.ok(text, java.util.List.of(text), "TEST", "test=" + text);
+                });
     }
 
     @Test
-    @DisplayName("INITIAL agent 应该被支持")
+    @DisplayName("非临床话语应跳过图谱检索")
+    void enrich_nonClinical_skipsGraph() {
+        ClinicalState state = ClinicalState.builder().rawInput("你好医生").build();
+        when(clinicalSpanExtractor.extract(state)).thenReturn(
+                ClinicalSpanExtractionResult.skipped("NON_CLINICAL_UTTERANCE", "非临床话语"));
+
+        GraphEvidence result = service.enrich(state, MedicalAgentType.INITIAL);
+
+        assertFalse(result.isGraphHit());
+        assertEquals("NON_CLINICAL_UTTERANCE", result.getGraphSkipReason());
+        assertEquals("NO_HIT", state.getExtensions().get(KnowledgeEnrichmentService.EXT_GROUNDING_STATUS));
+    }
+
+    @Test
     void supportsAgent_initialAgent_returnsTrue() {
         assertTrue(service.supportsAgent(MedicalAgentType.INITIAL));
     }

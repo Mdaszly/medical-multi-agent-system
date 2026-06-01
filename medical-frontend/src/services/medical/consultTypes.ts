@@ -27,6 +27,9 @@ export interface GraphEvidence {
   formattedText?: string
   symptomResolutionTrace?: string
   symptomMatches?: SymptomMatch[]
+  clinicalTextUsed?: string
+  clinicalSpanSource?: string
+  graphSkipReason?: string
 }
 
 export interface AgentTrace {

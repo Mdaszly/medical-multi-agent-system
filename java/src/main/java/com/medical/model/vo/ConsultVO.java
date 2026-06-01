@@ -156,6 +156,19 @@ public class ConsultVO {
 
     private static String buildGraphHitMessage(GraphEvidenceVO detail, String groundingStatus) {
         if (detail == null || !detail.isGraphHit()) {
+            if (detail != null && StringUtils.hasText(detail.getGraphSkipReason())) {
+                return switch (detail.getGraphSkipReason()) {
+                    case "NON_CLINICAL_UTTERANCE" ->
+                            "【知识图谱·未触发】当前输入为寒暄或非主诉内容，未进行症状映射。"
+                                    + "请在「症状描述」中补充具体不适，或继续对话说明哪里不舒服。";
+                    case "NO_CLINICAL_SPAN" ->
+                            "【知识图谱·未触发】未识别到可检索的临床症状。"
+                                    + "请补充具体部位与表现（如「头痛 2 天、伴恶心」）。";
+                    default ->
+                            "【知识图谱·未命中】未在医学知识图谱中找到与您描述相匹配的症状-疾病-ICD 关联。"
+                                    + "以下 AI 建议主要依据大模型通用医学知识生成，请谨慎参考并及时就医。";
+                };
+            }
             return "【知识图谱·未命中】未在医学知识图谱中找到与您描述相匹配的症状-疾病-ICD 关联。"
                     + "以下 AI 建议主要依据大模型通用医学知识生成，请谨慎参考并及时就医。";
         }

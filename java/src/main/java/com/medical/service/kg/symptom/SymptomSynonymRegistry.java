@@ -29,7 +29,7 @@ public class SymptomSynonymRegistry {
     }
 
     @PostConstruct
-    void load() {
+    public void load() {
         reload();
     }
 

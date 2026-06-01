@@ -145,26 +145,16 @@ public class SymptomResolver {
             if (cfg.isLlmDisambiguate() && (!cfg.isLlmOnlyWhenAmbiguous() || ambiguous
                     || top.getScore() < cfg.getVectorMinScore())) {
                 Optional<SymptomMatch> llm = llmNormalizer.disambiguate(trimmed, vectorCandidates, vocabulary);
-                if (llm.isPresent()) {
+                if (llm.isPresent() && llm.get().getConfidence() >= cfg.getAcceptMinConfidence()) {
                     enrichCode(llm.get(), byName);
                     return llm;
                 }
             }
-            if (top.getScore() >= cfg.getAcceptMinConfidence()) {
-                return Optional.of(SymptomMatch.builder()
-                        .userPhrase(trimmed)
-                        .canonicalName(top.getEntry().getName())
-                        .symptomCode(top.getEntry().getCode())
-                        .confidence(top.getScore())
-                        .method("VECTOR")
-                        .rationale("向量召回（未消歧）")
-                        .build());
-            }
         }
 
-        if (cfg.isLlmDisambiguate()) {
+        if (cfg.isLlmDisambiguate() && !cfg.isLlmRequireVectorCandidates()) {
             Optional<SymptomMatch> llm = llmNormalizer.disambiguate(trimmed, List.of(), vocabulary);
-            if (llm.isPresent()) {
+            if (llm.isPresent() && llm.get().getConfidence() >= cfg.getAcceptMinConfidence()) {
                 enrichCode(llm.get(), byName);
                 return llm;
             }

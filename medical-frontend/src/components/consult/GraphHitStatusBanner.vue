@@ -82,6 +82,14 @@ const groundingHint = computed(() => {
     </div>
 
     <div
+      v-else-if="evidence?.graphSkipReason"
+      class="resolution-trace skip-reason"
+    >
+      <span class="matches-label">图谱门控</span>
+      <span class="trace-text">{{ evidence.graphSkipReason }}</span>
+    </div>
+
+    <div
       v-else-if="evidence?.symptomResolutionTrace"
       class="resolution-trace"
     >

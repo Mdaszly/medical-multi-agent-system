@@ -18,6 +18,15 @@ public class MedicalGraphProperties {
     private boolean syncToRdbOnStartup = false;
 
     private SymptomResolver symptomResolver = new SymptomResolver();
+    private ClinicalSpan clinicalSpan = new ClinicalSpan();
+
+    @Data
+    public static class ClinicalSpan {
+        /** 启用临床片段抽取（结构化主诉 + 规则/LLM 抽槽） */
+        private boolean enabled = true;
+        /** 规则未命中时是否调用 LLM 抽槽 */
+        private boolean llmEnabled = false;
+    }
 
     @Data
     public static class SymptomResolver {
@@ -31,12 +40,14 @@ public class MedicalGraphProperties {
         private double vectorAmbiguityGap = 0.05;
         /** 向量相似度接受阈值（余弦） */
         private double vectorMinScore = 0.72;
-        /** 最终写入图谱的最低置信度 */
-        private double acceptMinConfidence = 0.55;
+        /** 最终写入图谱的最低置信度（与 vectorMinScore 对齐，避免弱匹配误召） */
+        private double acceptMinConfidence = 0.72;
         /** 是否在模糊候选时调用 LLM */
         private boolean llmDisambiguate = true;
         /** 向量已高置信时跳过 LLM */
         private boolean llmOnlyWhenAmbiguous = true;
+        /** 禁止在向量无候选时对全量词表做 LLM 硬配 */
+        private boolean llmRequireVectorCandidates = true;
         private String embeddingModel = "text-embedding-v3";
         /** 启动时构建内存向量索引 */
         private boolean buildIndexOnStartup = true;

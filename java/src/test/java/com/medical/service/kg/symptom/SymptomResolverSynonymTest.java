@@ -5,6 +5,7 @@ import com.medical.config.MedicalGraphProperties;
 import com.medical.knowledgegraph.service.extraction.EntityExtractionService;
 import com.medical.knowledgegraph.service.neo4j.KnowledgeGraphService;
 import com.medical.mapper.SymptomMapper;
+import com.medical.service.kg.clinical.NonClinicalPhraseFilter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -64,7 +65,7 @@ class SymptomResolverSynonymTest {
         when(vectorIndex.isReady()).thenReturn(false);
 
         SymptomPhraseExtractor extractor = new SymptomPhraseExtractor(
-                entityExtractionService, registry, vocabularyService);
+                entityExtractionService, registry, vocabularyService, new NonClinicalPhraseFilter());
 
         resolver = new SymptomResolver(
                 props, extractor, registry, vocabularyService,

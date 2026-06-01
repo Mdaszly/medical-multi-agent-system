@@ -20,6 +20,9 @@ public class GraphEvidenceVO {
     private String formattedText;
     private String symptomResolutionTrace;
     private List<SymptomMatchVO> symptomMatches = new ArrayList<>();
+    private String clinicalTextUsed;
+    private String clinicalSpanSource;
+    private String graphSkipReason;
 
     public static GraphEvidenceVO from(GraphEvidence evidence) {
         if (evidence == null) {
@@ -30,6 +33,9 @@ public class GraphEvidenceVO {
         vo.setQueryTimeMs(evidence.getQueryTimeMs());
         vo.setFormattedText(evidence.getFormattedText());
         vo.setSymptomResolutionTrace(evidence.getSymptomResolutionTrace());
+        vo.setClinicalTextUsed(evidence.getClinicalTextUsed());
+        vo.setClinicalSpanSource(evidence.getClinicalSpanSource());
+        vo.setGraphSkipReason(evidence.getGraphSkipReason());
         if (evidence.getExtractedSymptoms() != null) {
             vo.setExtractedSymptoms(new ArrayList<>(evidence.getExtractedSymptoms()));
         }

@@ -2,6 +2,7 @@ package com.medical.service.kg.symptom;
 
 import com.medical.knowledgegraph.model.entity.Symptom;
 import com.medical.knowledgegraph.service.extraction.EntityExtractionService;
+import com.medical.service.kg.clinical.NonClinicalPhraseFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -21,6 +22,7 @@ public class SymptomPhraseExtractor {
     private final EntityExtractionService entityExtractionService;
     private final SymptomSynonymRegistry synonymRegistry;
     private final SymptomVocabularyService vocabularyService;
+    private final NonClinicalPhraseFilter nonClinicalFilter;
 
     public List<String> extractPhrases(String rawText) {
         Set<String> phrases = new LinkedHashSet<>();
@@ -54,12 +56,20 @@ public class SymptomPhraseExtractor {
 
         for (String clause : CLAUSE_SPLIT.split(text)) {
             String part = clause.trim();
-            if (part.length() >= 2 && part.length() <= 12) {
+            if (part.length() < 2 || part.length() > 24) {
+                continue;
+            }
+            if (nonClinicalFilter.isPureNonClinical(part)) {
+                continue;
+            }
+            if (nonClinicalFilter.hasSymptomSignal(part) || synonymRegistry.resolveExact(part).isPresent()) {
                 phrases.add(part);
             }
         }
 
-        if (phrases.isEmpty()) {
+        if (phrases.isEmpty()
+                && !nonClinicalFilter.isPureNonClinical(text)
+                && nonClinicalFilter.hasSymptomSignal(text)) {
             phrases.add(text);
         }
         return new ArrayList<>(phrases);
