@@ -1,16 +1,18 @@
-import { get, post } from "@/request";
+import { get, post, put } from "@/request";
 
 export default function request<T = any>(
   url: string,
   options: any = {}
 ): Promise<any> {
-  const method = options.method || "GET";
+  const method = (options.method || "GET").toUpperCase();
   const data = options.data;
   const params = options.params;
 
-  if (method.toUpperCase() === "GET") {
+  if (method === "GET") {
     return get(url, { ...options, params });
-  } else {
-    return post(url, data, options);
   }
+  if (method === "PUT") {
+    return put(url, data, options);
+  }
+  return post(url, data, options);
 }

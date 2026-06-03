@@ -3,7 +3,7 @@
 -- =============================================================================
 -- 数据库: clinical_decision
 -- 对齐来源: 生产库 pg_dump schema-only（2026-05-22）
--- 表数量: 18（已移除 audit_log / audit_logs / clinical_sessions）
+-- 表数量: 20（已移除 audit_log / audit_logs / clinical_sessions）
 --
 -- 症状-ICD 数据流:
 --   Neo4j（权威） --POST /api/knowledge-graph/sync-to-rdb--> symptom / icd10_code / symptom_icd_rel
@@ -16,6 +16,8 @@
 -- -----------------------------------------------------------------------------
 -- 0. 清理（按外键依赖倒序）
 -- -----------------------------------------------------------------------------
+DROP TABLE IF EXISTS appointment_event_audit;
+DROP TABLE IF EXISTS user_notification;
 DROP TABLE IF EXISTS symptom_icd_rel;
 DROP TABLE IF EXISTS chat_message;
 DROP TABLE IF EXISTS chat_session;
@@ -197,7 +199,9 @@ COMMENT ON COLUMN appointment.chief_complaint IS '患者主诉';
 COMMENT ON COLUMN appointment.prescription_id IS '关联处方ID';
 
 CREATE UNIQUE INDEX uk_appointment_no ON appointment(appointment_no);
-CREATE UNIQUE INDEX uk_appointment_user_schedule_slot ON appointment(user_id, schedule_id, time_slot);
+CREATE UNIQUE INDEX uk_appointment_user_schedule_slot
+    ON appointment(user_id, schedule_id, time_slot)
+    WHERE status IN (0, 1, 2);
 CREATE INDEX idx_appointment_user_id ON appointment(user_id);
 CREATE INDEX idx_appointment_doctor_id ON appointment(doctor_id);
 CREATE INDEX idx_appointment_schedule_id ON appointment(schedule_id);
@@ -487,6 +491,53 @@ CREATE TABLE symptom_icd_rel (
 
 CREATE INDEX idx_rel_symptom_id ON symptom_icd_rel(symptom_id);
 CREATE INDEX idx_rel_icd_code ON symptom_icd_rel(icd_code);
+
+-- -----------------------------------------------------------------------------
+-- 19. 用户通知表（预约等领域事件异步落库）
+-- -----------------------------------------------------------------------------
+CREATE TABLE user_notification (
+    id                  BIGSERIAL PRIMARY KEY,
+    user_id             BIGINT NOT NULL,
+    title               VARCHAR(100) NOT NULL,
+    content             TEXT NOT NULL,
+    biz_type            VARCHAR(30) NOT NULL DEFAULT 'APPOINTMENT',
+    biz_id              BIGINT,
+    event_type          VARCHAR(50),
+    read_status         SMALLINT NOT NULL DEFAULT 0,
+    create_time         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+COMMENT ON TABLE user_notification IS '用户站内通知（由 RabbitMQ 预约事件 Consumer 写入）';
+COMMENT ON COLUMN user_notification.read_status IS '0-未读，1-已读';
+COMMENT ON COLUMN user_notification.biz_type IS '业务类型，如 APPOINTMENT';
+COMMENT ON COLUMN user_notification.event_type IS '领域事件类型，如 APPOINTMENT_CREATED';
+
+CREATE INDEX idx_user_notification_user_id ON user_notification(user_id);
+CREATE INDEX idx_user_notification_user_read ON user_notification(user_id, read_status);
+CREATE INDEX idx_user_notification_create_time ON user_notification(create_time DESC);
+
+-- -----------------------------------------------------------------------------
+-- 20. 预约领域事件审计表
+-- -----------------------------------------------------------------------------
+CREATE TABLE appointment_event_audit (
+    id                  BIGSERIAL PRIMARY KEY,
+    event_id            VARCHAR(100) NOT NULL,
+    event_type          VARCHAR(50) NOT NULL,
+    appointment_id      BIGINT NOT NULL,
+    user_id             BIGINT,
+    doctor_id           BIGINT,
+    previous_status     SMALLINT,
+    current_status      SMALLINT,
+    source              VARCHAR(20),
+    payload_json        TEXT,
+    create_time         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+COMMENT ON TABLE appointment_event_audit IS '预约领域事件审计（RabbitMQ appointment.audit 队列消费落库）';
+
+CREATE UNIQUE INDEX uk_appointment_event_audit_event_id ON appointment_event_audit(event_id);
+CREATE INDEX idx_appointment_event_audit_appointment_id ON appointment_event_audit(appointment_id);
+CREATE INDEX idx_appointment_event_audit_create_time ON appointment_event_audit(create_time DESC);
 
 -- =============================================================================
 -- 脚本结束

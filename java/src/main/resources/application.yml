@@ -26,6 +26,23 @@ spring:
         max-idle: 8
         min-idle: 4
         max-wait: 3000ms
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:medical}
+    password: ${RABBITMQ_PASSWORD:medical}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    listener:
+      simple:
+        acknowledge-mode: manual
+        prefetch: 10
+        auto-startup: ${MEDICAL_MESSAGING_ENABLED:true}
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 1000ms
+          multiplier: 2.0
 
 mybatis-plus:
   mapper-locations: classpath*:/mapper/**/*.xml
@@ -47,6 +64,9 @@ management:
     web:
       exposure:
         include: health,info,metrics
+  health:
+    rabbit:
+      enabled: ${MEDICAL_MESSAGING_ENABLED:true}
 
 sa-token:
   token-name: Authorization
@@ -60,6 +80,13 @@ sa-token:
   dao-type: redis-jackson
 
 medical:
+  messaging:
+    enabled: ${MEDICAL_MESSAGING_ENABLED:true}
+    appointment:
+      exchange: medical.appointment.topic
+      dlx-exchange: medical.appointment.dlx
+      reminder-hours-before: 2
+      audit-enabled: true
   ai:
     chat-type: enhanced # legacy: 仅临床 Pipeline; enhanced: 线上问诊 MedicalPipeline
     graph:

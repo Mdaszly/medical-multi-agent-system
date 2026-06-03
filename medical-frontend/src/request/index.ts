@@ -132,4 +132,17 @@ export function post<T = any>(
   });
 }
 
+// PUT请求封装
+export function put<T = any>(
+  url: string,
+  data?: any,
+  options?: RequestOptions,
+) {
+  return request<T>(url, {
+    ...options,
+    method: "PUT",
+    body: data ? JSON.stringify(data) : undefined,
+  });
+}
+
 export default request;

@@ -37,6 +37,12 @@ public class RedisCacheUtil {
             if (clazz == BigDecimal.class && value instanceof Number) {
                 return (T) new BigDecimal(value.toString());
             }
+            if (value instanceof java.util.Map && !clazz.isInstance(value)) {
+                return JSONUtil.toBean(JSONUtil.toJsonStr(value), clazz);
+            }
+            if (clazz.isInstance(value)) {
+                return clazz.cast(value);
+            }
             return (T) value;
         } catch (Exception e) {
             log.error("Redis get error: key={}, error={}", key, e.getMessage());
@@ -78,12 +84,17 @@ public class RedisCacheUtil {
         }
     }
 
+    /**
+     * SET NX 占位。
+     *
+     * @return true/false 表示是否占位成功；{@code null} 表示 Redis 异常（调用方勿当作「已处理」）
+     */
     public Boolean setIfAbsent(String key, Object value, Duration timeout) {
         try {
             return redisTemplate.opsForValue().setIfAbsent(key, value, timeout);
         } catch (Exception e) {
             log.error("Redis setIfAbsent error: key={}, error={}", key, e.getMessage());
-            return false;
+            return null;
         }
     }
 

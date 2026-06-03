@@ -1,9 +1,10 @@
 package com.medical.service;
 
 import cn.dev33.satoken.stp.StpUtil;
-import com.medical.common.DistributedLock;
 import com.medical.common.ErrorCode;
 import com.medical.common.RedisCacheUtil;
+import com.medical.common.RedissonLockUtil;
+import com.medical.messaging.appointment.AppointmentEventBridge;
 import com.medical.constant.AppointmentConstant;
 import com.medical.exception.BusinessException;
 import com.medical.mapper.*;
@@ -19,7 +20,9 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.aop.framework.AopContext;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -64,10 +67,19 @@ class AppointmentServiceTest {
     private UserMapper userMapper;
 
     @Mock
-    private DistributedLock distributedLock;
+    private BillMapper billMapper;
+
+    @Mock
+    private PrescriptionMapper prescriptionMapper;
+
+    @Mock
+    private RedissonLockUtil redissonLockUtil;
 
     @Mock
     private RedisCacheUtil redisCacheUtil;
+
+    @Mock
+    private AppointmentEventBridge appointmentEventBridge;
 
     @InjectMocks
     private AppointmentServiceImpl appointmentService;
@@ -78,8 +90,17 @@ class AppointmentServiceTest {
     private AppointmentSlot testSlot;
     private Appointment testAppointment;
 
+    private MockedStatic<StpUtil> stpUtilMock;
+
+    private MockedStatic<AopContext> aopContextMock;
+
     @BeforeEach
     void setUp() {
+        stpUtilMock = mockStatic(StpUtil.class);
+        stpUtilMock.when(StpUtil::getLoginIdAsLong).thenReturn(6L);
+        aopContextMock = mockStatic(AopContext.class);
+        aopContextMock.when(AopContext::currentProxy).thenReturn(appointmentService);
+
         log.info("========== 测试前置准备 ==========");
 
         testUser = new User();
@@ -134,8 +155,15 @@ class AppointmentServiceTest {
     @AfterEach
     void tearDown() {
         log.info("========== 测试清理 ==========");
+        if (stpUtilMock != null) {
+            stpUtilMock.close();
+        }
+        if (aopContextMock != null) {
+            aopContextMock.close();
+        }
         reset(appointmentMapper, appointmentSlotMapper, scheduleMapper,
-                doctorMapper, userMapper, distributedLock, redisCacheUtil);
+                doctorMapper, userMapper, billMapper, prescriptionMapper,
+                redissonLockUtil, redisCacheUtil, appointmentEventBridge);
     }
 
     // ==================== 创建预约测试 ====================
@@ -154,7 +182,7 @@ class AppointmentServiceTest {
             request.setTimeSlot("08:00-08:30");
             request.setRemark("首次就诊");
 
-            when(distributedLock.tryLock(anyString(), anyLong(), any(TimeUnit.class)))
+            when(redissonLockUtil.tryLock(anyString(), anyLong()))
                     .thenReturn(true);
             when(scheduleMapper.selectById(1L)).thenReturn(testSchedule);
             when(appointmentSlotMapper.selectByScheduleId(1L))
@@ -176,8 +204,8 @@ class AppointmentServiceTest {
             assertEquals(AppointmentConstant.APPOINTMENT_STATUS_PENDING, result.getStatus());
             assertEquals("待就诊", result.getStatusText());
 
-            verify(distributedLock).tryLock(anyString(), eq(10L), eq(TimeUnit.SECONDS));
-            verify(distributedLock).unlock(anyString());
+            verify(redissonLockUtil).tryLock(anyString(), eq(10L));
+            verify(redissonLockUtil).unlock(anyString());
             verify(appointmentMapper).insert(any(Appointment.class));
 
             log.info("预约创建成功：{}", result.getAppointmentNo());
@@ -228,7 +256,7 @@ class AppointmentServiceTest {
             request.setScheduleId(1L);
             request.setTimeSlot("08:00-08:30");
 
-            when(distributedLock.tryLock(anyString(), anyLong(), any(TimeUnit.class)))
+            when(redissonLockUtil.tryLock(anyString(), anyLong()))
                     .thenReturn(false);
 
             BusinessException exception = assertThrows(BusinessException.class,
@@ -249,7 +277,7 @@ class AppointmentServiceTest {
             request.setScheduleId(999L);
             request.setTimeSlot("08:00-08:30");
 
-            when(distributedLock.tryLock(anyString(), anyLong(), any(TimeUnit.class)))
+            when(redissonLockUtil.tryLock(anyString(), anyLong()))
                     .thenReturn(true);
             when(scheduleMapper.selectById(999L)).thenReturn(null);
 
@@ -259,7 +287,7 @@ class AppointmentServiceTest {
             assertEquals(ErrorCode.PARAM_ERROR.getCode(), exception.getCode());
             assertTrue(exception.getMessage().contains("排班不存在"));
 
-            verify(distributedLock).unlock(anyString());
+            verify(redissonLockUtil).unlock(anyString());
 
             log.info("排班验证通过：{}", exception.getMessage());
         }
@@ -275,7 +303,7 @@ class AppointmentServiceTest {
             request.setScheduleId(1L);
             request.setTimeSlot("08:00-08:30");
 
-            when(distributedLock.tryLock(anyString(), anyLong(), any(TimeUnit.class)))
+            when(redissonLockUtil.tryLock(anyString(), anyLong()))
                     .thenReturn(true);
             when(scheduleMapper.selectById(1L)).thenReturn(testSchedule);
             when(appointmentSlotMapper.selectByScheduleId(1L))
@@ -287,7 +315,7 @@ class AppointmentServiceTest {
             assertEquals(ErrorCode.PARAM_ERROR.getCode(), exception.getCode());
             assertTrue(exception.getMessage().contains("已约满"));
 
-            verify(distributedLock).unlock(anyString());
+            verify(redissonLockUtil).unlock(anyString());
 
             log.info("号源验证通过：{}", exception.getMessage());
         }
@@ -301,7 +329,7 @@ class AppointmentServiceTest {
             request.setScheduleId(1L);
             request.setTimeSlot("08:00-08:30");
 
-            when(distributedLock.tryLock(anyString(), anyLong(), any(TimeUnit.class)))
+            when(redissonLockUtil.tryLock(anyString(), anyLong()))
                     .thenReturn(true);
             when(scheduleMapper.selectById(1L)).thenReturn(testSchedule);
             when(appointmentSlotMapper.selectByScheduleId(1L))
@@ -315,7 +343,7 @@ class AppointmentServiceTest {
             assertEquals(ErrorCode.PARAM_ERROR.getCode(), exception.getCode());
             assertTrue(exception.getMessage().contains("已预约"));
 
-            verify(distributedLock).unlock(anyString());
+            verify(redissonLockUtil).unlock(anyString());
 
             log.info("重复预约验证通过：{}", exception.getMessage());
         }
@@ -329,7 +357,7 @@ class AppointmentServiceTest {
             request.setScheduleId(1L);
             request.setTimeSlot("08:00-08:30");
 
-            when(distributedLock.tryLock(anyString(), anyLong(), any(TimeUnit.class)))
+            when(redissonLockUtil.tryLock(anyString(), anyLong()))
                     .thenReturn(true);
             when(scheduleMapper.selectById(1L)).thenReturn(testSchedule);
             when(appointmentSlotMapper.selectByScheduleId(1L))
@@ -347,7 +375,7 @@ class AppointmentServiceTest {
             assertEquals(ErrorCode.SYSTEM_ERROR.getCode(), exception.getCode());
             assertTrue(exception.getMessage().contains("已被占用"));
 
-            verify(distributedLock).unlock(anyString());
+            verify(redissonLockUtil).unlock(anyString());
 
             log.info("乐观锁验证通过：{}", exception.getMessage());
         }
@@ -502,15 +530,26 @@ class AppointmentServiceTest {
             log.info("测试：成功签到");
 
             when(appointmentMapper.selectById(1L)).thenReturn(testAppointment);
-            when(appointmentMapper.updateById(any(Appointment.class))).thenReturn(1);
+            when(appointmentMapper.checkInIfPending(
+                    1L,
+                    AppointmentConstant.APPOINTMENT_STATUS_PENDING,
+                    AppointmentConstant.APPOINTMENT_STATUS_CHECKED_IN)).thenReturn(1);
+
+            Appointment checkedIn = new Appointment();
+            checkedIn.setId(testAppointment.getId());
+            checkedIn.setUserId(testAppointment.getUserId());
+            checkedIn.setDoctorId(testAppointment.getDoctorId());
+            checkedIn.setStatus(AppointmentConstant.APPOINTMENT_STATUS_CHECKED_IN);
+            when(appointmentMapper.selectById(1L)).thenReturn(testAppointment, checkedIn);
 
             assertDoesNotThrow(() -> appointmentService.checkInAppointment(1L));
 
-            verify(appointmentMapper).updateById(argThat(appointment -> {
-                Appointment apt = (Appointment) appointment;
-                return apt.getStatus().equals(AppointmentConstant.APPOINTMENT_STATUS_CHECKED_IN)
-                        && apt.getCheckInStatus() == true;
-            }));
+            verify(appointmentMapper).checkInIfPending(
+                    1L,
+                    AppointmentConstant.APPOINTMENT_STATUS_PENDING,
+                    AppointmentConstant.APPOINTMENT_STATUS_CHECKED_IN);
+            verify(appointmentEventBridge).publishCheckedIn(any(Appointment.class),
+                    eq(AppointmentConstant.APPOINTMENT_STATUS_PENDING));
 
             log.info("签到成功");
         }
@@ -523,6 +562,10 @@ class AppointmentServiceTest {
             testAppointment.setStatus(AppointmentConstant.APPOINTMENT_STATUS_COMPLETED);
 
             when(appointmentMapper.selectById(1L)).thenReturn(testAppointment);
+            when(appointmentMapper.checkInIfPending(
+                    1L,
+                    AppointmentConstant.APPOINTMENT_STATUS_PENDING,
+                    AppointmentConstant.APPOINTMENT_STATUS_CHECKED_IN)).thenReturn(0);
 
             BusinessException exception = assertThrows(BusinessException.class,
                     () -> appointmentService.checkInAppointment(1L));

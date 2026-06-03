@@ -11,6 +11,7 @@ import com.medical.constant.PrescriptionConstant;
 import com.medical.exception.BusinessException;
 import com.medical.exception.ThrowUtils;
 import com.medical.mapper.*;
+import com.medical.messaging.appointment.AppointmentEventBridge;
 import com.medical.model.dto.payment.PaymentRequest;
 import com.medical.model.dto.prescription.PrescriptionAddRequest;
 import com.medical.model.dto.prescription.PrescriptionQueryRequest;
@@ -58,6 +59,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
     private final BillService billService;
     private final AppointmentService appointmentService;
     private final PaymentService paymentService;
+    private final AppointmentEventBridge appointmentEventBridge;
     private final AuthSessionHelper authSessionHelper;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -304,10 +306,23 @@ public class PrescriptionServiceImpl implements PrescriptionService {
                 paymentRequest.setPaymentType("WECHAT");
                 paymentService.createPayment(paymentRequest);
                 log.info("发药后待支付订单已就绪: billId={}", bill.getId());
+                publishBillUnpaidNotification(appointmentId, bill);
             }
         } catch (Exception e) {
             log.warn("发药后自动生成账单或支付记录失败: prescriptionId={}, appointmentId={}, error={}",
                     prescriptionId, appointmentId, e.getMessage());
+        }
+    }
+
+    private void publishBillUnpaidNotification(Long appointmentId, com.medical.model.vo.BillVO bill) {
+        try {
+            Appointment appointment = appointmentMapper.selectById(appointmentId);
+            if (appointment != null) {
+                appointmentEventBridge.publishBillUnpaid(appointment, bill);
+            }
+        } catch (Exception e) {
+            log.warn("发药后发布待支付账单通知事件失败: appointmentId={}, billId={}, error={}",
+                    appointmentId, bill != null ? bill.getId() : null, e.getMessage());
         }
     }
 

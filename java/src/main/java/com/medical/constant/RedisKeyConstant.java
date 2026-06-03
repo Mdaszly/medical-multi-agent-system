@@ -94,6 +94,19 @@ public final class RedisKeyConstant {
     public static final Duration TTL_30_MINUTES = Duration.ofMinutes(30);
 
     /**
+     * MQ 消费幂等键：{@code mq:processed:{eventId}}，TTL {@link #MQ_PROCESSED_TTL}。
+     * slot/audit 消费者会在 eventId 前加 {@code slot:}/{@code audit:} 前缀避免与 notification 冲突。
+     */
+    public static final String MQ_PROCESSED = "mq:processed:%s";
+    public static final Duration MQ_PROCESSED_TTL = Duration.ofDays(7);
+
+    /**
+     * 就诊提醒已成功写入通知表后标记；Scheduler 用 hasKey 减少重复 publish。
+     */
+    public static final String MQ_REMINDER_SENT = "mq:reminder:sent:%d";
+    public static final Duration MQ_REMINDER_SENT_TTL = Duration.ofDays(3);
+
+    /**
      * 构建用户缓存Key
      *
      * @param userId 用户ID

@@ -10,6 +10,7 @@ import com.medical.common.RedissonLockUtil;
 import com.medical.constant.AppointmentConstant;
 import com.medical.constant.ScheduleConstant;
 import com.medical.constant.UserConstant;
+import com.medical.exception.BusinessException;
 import com.medical.exception.ThrowUtils;
 import com.medical.mapper.*;
 import com.medical.model.dto.appointment.AppointmentAddRequest;
@@ -20,9 +21,11 @@ import com.medical.model.vo.AppointmentSlotVO;
 import com.medical.model.vo.AppointmentVO;
 import com.medical.model.vo.DepartmentDateStatusVO;
 import com.medical.model.vo.DepartmentDoctorBookingVO;
+import com.medical.messaging.appointment.AppointmentEventBridge;
 import com.medical.service.AppointmentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.aop.framework.AopContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.io.FileWriter;
 import java.util.stream.Collectors;
 
 /**
@@ -57,6 +61,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     private final PrescriptionMapper prescriptionMapper;
     private final RedissonLockUtil redissonLockUtil;
     private final RedisCacheUtil redisCacheUtil;
+    private final AppointmentEventBridge appointmentEventBridge;
 
     @Override
     public AppointmentVO createAppointment(AppointmentAddRequest request) {
@@ -110,6 +115,11 @@ public class AppointmentServiceImpl implements AppointmentService {
         // 步骤3：幂等性检查 - 防止重复预约
         // 同一用户在同一排班的同一时段只能预约一次
         int count = appointmentMapper.countByUserIdAndScheduleIdAndTimeSlot(userId, scheduleId, timeSlot);
+        // #region agent log
+        agentDebugLog("A", "AppointmentServiceImpl.doCreateAppointment:dupCheck",
+                "active appointment count before insert",
+                Map.of("userId", userId, "scheduleId", scheduleId, "timeSlot", timeSlot, "activeCount", count));
+        // #endregion
         ThrowUtils.throwIf(count > 0, ErrorCode.PARAM_ERROR, "您已预约该时段");
 
         // 步骤4：验证患者信息
@@ -144,7 +154,19 @@ public class AppointmentServiceImpl implements AppointmentService {
         appointment.setRemark(request.getRemark());
 
         // 步骤7：保存预约记录
-        appointmentMapper.insert(appointment);
+        try {
+            appointmentMapper.insert(appointment);
+        } catch (DuplicateKeyException e) {
+            // #region agent log
+            agentDebugLog("B", "AppointmentServiceImpl.doCreateAppointment:insert",
+                    "duplicate key on insert",
+                    Map.of("userId", userId, "scheduleId", scheduleId, "timeSlot", timeSlot,
+                            "error", e.getMostSpecificCause().getMessage()));
+            // #endregion
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "您已预约该时段");
+        }
+        // 事务提交后由 AppointmentEventAfterCommitListener 发 MQ（通知 + 审计）
+        appointmentEventBridge.publishCreated(appointment);
         return AppointmentVO.fromEntity(appointment);
     }
 
@@ -167,17 +189,20 @@ public class AppointmentServiceImpl implements AppointmentService {
         ThrowUtils.throwIf(!appointment.getStatus().equals(AppointmentConstant.APPOINTMENT_STATUS_PENDING),
                 ErrorCode.PARAM_ERROR, "该预约状态不可取消");
 
+        Integer previousStatus = appointment.getStatus();
+
         // 更新为取消状态
         appointment.setStatus(AppointmentConstant.APPOINTMENT_STATUS_CANCELLED);
         appointment.setCancelTime(LocalDateTime.now());
         appointment.setCancelReason(request.getCancelReason());
         appointmentMapper.updateById(appointment);
 
-        // 恢复号源数量
+        // 取消同步回补号源（过期回补走 slot-restore 消费者，见 RabbitMqTopology）
         AppointmentSlot slot = getSlotByScheduleIdAndTimeSlot(appointment.getScheduleId(), appointment.getTimeSlot());
         if (slot != null) {
             appointmentSlotMapper.increaseAvailableSlots(slot.getId());
         }
+        appointmentEventBridge.publishCancelled(appointment, previousStatus, request.getCancelReason());
     }
 
     @Override
@@ -225,11 +250,33 @@ public class AppointmentServiceImpl implements AppointmentService {
         endDate = endDate != null ? endDate : today.plusDays(30);
 
         List<Appointment> appointments = appointmentMapper.selectByUserIdAndDateRange(userId, startDate, endDate);
+        // 补偿逻辑需独立事务，否则 AfterCommitListener 不触发（见 AppointmentEventAfterCommitListener）
         for (Appointment appointment : appointments) {
-            reconcileDiagnosisFromPrescription(appointment);
-            reconcileSettledIfBillPaid(appointment);
+            ((AppointmentService) AopContext.currentProxy()).reconcileAppointmentData(appointment.getId());
         }
-        return appointments.stream().map(AppointmentVO::fromEntity).collect(Collectors.toList());
+        return appointments.stream()
+                .map(Appointment::getId)
+                .map(appointmentMapper::selectById)
+                .map(AppointmentVO::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 列表查询时的补偿入口：回填诊断、账单已付但状态未结算等。
+     * 必须经 AOP 代理调用以保证 {@code @Transactional} 与 MQ after-commit 生效。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void reconcileAppointmentData(Long appointmentId) {
+        if (appointmentId == null) {
+            return;
+        }
+        Appointment appointment = appointmentMapper.selectById(appointmentId);
+        if (appointment == null) {
+            return;
+        }
+        reconcileDiagnosisFromPrescription(appointment);
+        reconcileSettledIfBillPaid(appointment);
     }
 
     /**
@@ -257,7 +304,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     }
 
     /**
-     * 补偿：账单已支付但预约仍为诊疗中时，自动置为已结算
+     * 补偿：账单已支付但预约仍为诊疗中时，自动置为已结算并发布 SETTLED 事件。
      */
     private void reconcileSettledIfBillPaid(Appointment appointment) {
         if (appointment == null || appointment.getId() == null) {
@@ -270,9 +317,11 @@ public class AppointmentServiceImpl implements AppointmentService {
         if (bill == null || !"PAID".equals(bill.getStatus())) {
             return;
         }
+        Integer previousStatus = appointment.getStatus();
         appointment.setStatus(AppointmentConstant.APPOINTMENT_STATUS_SETTLED);
         appointment.setUpdateTime(LocalDateTime.now());
         appointmentMapper.updateById(appointment);
+        appointmentEventBridge.publishSettled(appointment, previousStatus, "RECONCILE");
         log.info("补偿更新预约为已结算: appointmentId={}, billId={}", appointment.getId(), bill.getId());
     }
 
@@ -310,17 +359,18 @@ public class AppointmentServiceImpl implements AppointmentService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void checkInAppointment(Long appointmentId) {
-        Appointment appointment = getAppointmentEntityById(appointmentId);
+        getAppointmentEntityById(appointmentId);
 
-        // 状态校验：只有待就诊才能签到
-        ThrowUtils.throwIf(!appointment.getStatus().equals(AppointmentConstant.APPOINTMENT_STATUS_PENDING),
-                ErrorCode.PARAM_ERROR, "该预约状态不可签到");
+        Integer previousStatus = AppointmentConstant.APPOINTMENT_STATUS_PENDING;
+        // CAS：仅 PENDING 可签到，避免与过期定时任务互相覆盖状态
+        int rows = appointmentMapper.checkInIfPending(
+                appointmentId,
+                AppointmentConstant.APPOINTMENT_STATUS_PENDING,
+                AppointmentConstant.APPOINTMENT_STATUS_CHECKED_IN);
+        ThrowUtils.throwIf(rows != 1, ErrorCode.PARAM_ERROR, "该预约状态不可签到");
 
-        // 更新为已签到状态
-        appointment.setStatus(AppointmentConstant.APPOINTMENT_STATUS_CHECKED_IN);
-        appointment.setCheckInTime(LocalDateTime.now());
-        appointment.setCheckInStatus(true);
-        appointmentMapper.updateById(appointment);
+        Appointment appointment = appointmentMapper.selectById(appointmentId);
+        appointmentEventBridge.publishCheckedIn(appointment, previousStatus);
     }
 
     @Override
@@ -454,4 +504,34 @@ public class AppointmentServiceImpl implements AppointmentService {
         String uuid = UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         return AppointmentConstant.APPOINTMENT_NO_PREFIX + dateStr + uuid;
     }
+
+    // #region agent log
+    private void agentDebugLog(String hypothesisId, String location, String message, Map<String, Object> data) {
+        try (FileWriter fw = new FileWriter("debug-b37c1a.log", true)) {
+            StringBuilder dataJson = new StringBuilder("{");
+            boolean first = true;
+            for (Map.Entry<String, Object> e : data.entrySet()) {
+                if (!first) {
+                    dataJson.append(",");
+                }
+                first = false;
+                dataJson.append("\"").append(e.getKey()).append("\":");
+                Object v = e.getValue();
+                if (v == null) {
+                    dataJson.append("null");
+                } else if (v instanceof Number || v instanceof Boolean) {
+                    dataJson.append(v);
+                } else {
+                    dataJson.append("\"").append(String.valueOf(v).replace("\"", "\\\"")).append("\"");
+                }
+            }
+            dataJson.append("}");
+            fw.write("{\"sessionId\":\"b37c1a\",\"hypothesisId\":\"" + hypothesisId
+                    + "\",\"location\":\"" + location + "\",\"message\":\"" + message
+                    + "\",\"data\":" + dataJson + ",\"timestamp\":" + System.currentTimeMillis() + "}\n");
+        } catch (Exception ignored) {
+            // ignore debug log failures
+        }
+    }
+    // #endregion
 }

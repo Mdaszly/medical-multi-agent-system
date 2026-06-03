@@ -84,6 +84,13 @@ const routes: RouteRecordRaw[] = [
         meta: { title: "我的预约" },
       },
       {
+        path: "notifications",
+        name: "PatientNotifications",
+        component: () => import("@/views/shared/NotificationCenter.vue"),
+        props: { role: "user" },
+        meta: { title: "消息通知" },
+      },
+      {
         path: "prescriptions",
         name: "Prescriptions",
         component: () => import("@/views/patient/Prescriptions.vue"),
@@ -146,6 +153,13 @@ const routes: RouteRecordRaw[] = [
         name: "DoctorAppointments",
         component: () => import("@/views/doctor/Appointments.vue"),
         meta: { title: "接诊列表" },
+      },
+      {
+        path: "notifications",
+        name: "DoctorNotifications",
+        component: () => import("@/views/shared/NotificationCenter.vue"),
+        props: { role: "doctor" },
+        meta: { title: "消息通知" },
       },
       {
         path: "prescription/:appointmentId?",

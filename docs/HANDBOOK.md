@@ -23,6 +23,7 @@
   - [8.6 处方与药房](#86-处方与药房)
   - [8.7 费用与支付](#87-费用与支付)
   - [8.8 健康档案](#88-健康档案)
+  - [8.9 预约领域事件（RabbitMQ）](#89-预约领域事件rabbitmq)
 - [9. Agent 与在线问诊](#9-agent-与在线问诊)
 - [10. 知识图谱与症状解析](#10-知识图谱与症状解析)
 - [11. 测试与接口调试](#11-测试与接口调试)
@@ -42,7 +43,7 @@
 | 传统业务 | 患者 / 医生 / 管理员 / 药师；排班、预约、签到、处方、发药、支付 |
 | AI 能力 | Java 内嵌 Agent Pipeline（接诊→诊断→治疗→编码→审计）；增强问诊 `MedicalPipeline` |
 | 知识图谱 | Neo4j 存储症状—疾病—ICD；口语症状经向量 + 同义词 + LLM 对齐后查询 |
-| 基础设施 | `infra/docker-compose.yml` 启动 PostgreSQL、Neo4j、Redis |
+| 基础设施 | `infra/docker-compose.yml` 启动 PostgreSQL、Neo4j、Redis、RabbitMQ |
 
 默认端口：**后端 8080** · **前端 dev 5173**（Vite）· **Neo4j 7474/7687**
 
@@ -54,7 +55,7 @@
 medical-multi-agent-system/
 ├── java/                 # Spring Boot 3.3 主后端
 ├── medical-frontend/     # Vue 3 + Vite + Element Plus
-├── infra/                # Docker Compose（PG + Neo4j + Redis）
+├── infra/                # Docker Compose（PG + Neo4j + Redis + RabbitMQ）
 ├── docker/init-db.sql    # Compose 自动执行（演示审计表，非业务全量）
 ├── docs/
 │   ├── HANDBOOK.md       # ← 本文档
@@ -65,7 +66,7 @@ medical-multi-agent-system/
 
 | 层级 | 技术 |
 |------|------|
-| 后端 | Spring Boot、MyBatis-Plus、Sa-Token、Redis、Spring AI（DashScope 兼容） |
+| 后端 | Spring Boot、MyBatis-Plus、Sa-Token、Redis、RabbitMQ（Spring AMQP）、Spring AI（DashScope 兼容） |
 | 图数据库 | Neo4j Driver、Cypher |
 | 关系库 | PostgreSQL 16 |
 | 前端 | Vue 3、TypeScript、Pinia、Vue Router |
@@ -80,7 +81,7 @@ medical-multi-agent-system/
 | JDK | 17+ |
 | Maven | 3.9+ |
 | Node.js | 18+（前端） |
-| Docker Desktop | 用于 PG / Neo4j / Redis |
+| Docker Desktop | 用于 PG / Neo4j / Redis / RabbitMQ |
 | Git | 任意 |
 
 国内 Docker 镜像拉取失败时，见 [15.2 Docker 镜像加速](#152-docker-镜像加速)。
@@ -93,9 +94,11 @@ medical-multi-agent-system/
 
 ```powershell
 cd infra
-docker compose up -d postgres neo4j redis
+docker compose up -d postgres neo4j redis rabbitmq
 docker compose ps
 ```
+
+RabbitMQ 管理台（可选）：`http://localhost:15672`（默认账号 `medical` / `medical`，与 compose 一致）。
 
 等待 Postgres 就绪后，**首次**初始化业务表（见 [第 5 节](#5-数据库初始化)）。
 
@@ -127,7 +130,7 @@ npm run dev
 ### 4.4 推荐启动顺序
 
 ```
-Docker(PG+Neo4j+Redis) → 执行 schema.sql（仅首次）→ set-env.ps1 → Java → 前端
+Docker(PG+Neo4j+Redis+RabbitMQ) → 执行 schema.sql（仅首次）→ set-env.ps1 → Java → 前端
 ```
 
 ---
@@ -138,7 +141,7 @@ Docker(PG+Neo4j+Redis) → 执行 schema.sql（仅首次）→ set-env.ps1 → J
 |------|------|
 | 库名 | `clinical_decision`（与 `application.yml` 一致） |
 | Compose 自动脚本 | `docker/init-db.sql`：仅占位说明（业务 DDL 见 `schema.sql`） |
-| **业务表（必做）** | 手动执行 `docs/sql/schema.sql`（18 张表，含症状三表结构） |
+| **业务表（必做）** | 手动执行 `docs/sql/schema.sql`（20 张表，含症状三表、`user_notification`、`appointment_event_audit`） |
 | 症状/ICD **数据** | 启动 Java 后 `POST /api/knowledge-graph/sync-to-rdb`（Neo4j → PG） |
 | 运维/压测 SQL | 按需 `generate_slots.sql`、`seed_schedule_perf.sql`（见 `docs/sql/README.md`） |
 
@@ -168,7 +171,7 @@ docker compose exec -T postgres psql -U postgres -d clinical_decision < ../docs/
 DASHSCOPE_API_KEY=你的百炼API_KEY
 ```
 
-其余变量见 `java/.env.local.example`（Postgres、Neo4j、Redis 默认值与 Docker 一致即可）。
+其余变量见 `java/.env.local.example`（Postgres、Neo4j、Redis、RabbitMQ 默认值与 Docker 一致即可）。
 
 ### 6.2 环境变量一览
 
@@ -179,7 +182,13 @@ DASHSCOPE_API_KEY=你的百炼API_KEY
 | `POSTGRES_*` | 业务库 | host localhost, db clinical_decision |
 | `NEO4J_URI` | 图谱 | bolt://localhost:7687 |
 | `NEO4J_PASSWORD` | 图谱密码 | neo4jpass（与 compose 一致） |
-| `REDIS_HOST` | Sa-Token / 缓存 / 分布式锁 | localhost:6379 |
+| `REDIS_HOST` | Sa-Token / 缓存 / 分布式锁 / MQ 消费幂等 | localhost:6379 |
+| `RABBITMQ_HOST` | 预约领域事件 Broker | localhost |
+| `RABBITMQ_PORT` | AMQP 端口 | 5672 |
+| `RABBITMQ_USER` / `RABBITMQ_PASSWORD` | RabbitMQ 认证 | medical / medical |
+| `MEDICAL_MESSAGING_ENABLED` | 是否启用 RabbitMQ 发布与消费 | true |
+
+本地不启 RabbitMQ 时，可设 `MEDICAL_MESSAGING_ENABLED=false`（业务仍走同步路径；站内通知与异步号源回补不会触发）。
 
 ### 6.3 安全提醒
 
@@ -195,12 +204,12 @@ DASHSCOPE_API_KEY=你的百炼API_KEY
 │ medical-    │ ────────────► │ Spring Boot :8080             │
 │ frontend    │               │  Controller → Service → Mapper  │
 └─────────────┘               │  Agent Pipeline / KG Facade   │
-                              └───────┬──────────┬───────────┘
-                                      │          │
-                    ┌─────────────────┼──────────┼─────────────┐
-                    ▼                 ▼          ▼             ▼
-              PostgreSQL          Neo4j       Redis      DashScope API
-              (业务数据)          (图谱)      (会话/锁)
+                              └───────┬──────────┬───────────┬──────────┐
+                                      │          │           │          │
+                    ┌─────────────────┼──────────┼───────────┼──────────┼─────────────┐
+                    ▼                 ▼          ▼           ▼          ▼             ▼
+              PostgreSQL          Neo4j       Redis     RabbitMQ   DashScope API
+              (业务数据)          (图谱)   (会话/锁/幂等) (预约领域事件)  (LLM/Embedding)
 ```
 
 **分层职责**
@@ -209,6 +218,7 @@ DASHSCOPE_API_KEY=你的百炼API_KEY
 - **业务层**：预约、排班、处方、支付等  
 - **AI 层**：`ClinicalPipeline` / `MedicalPipeline`、症状解析、图谱增强  
 - **数据层**：PostgreSQL 事务数据；Neo4j 关系推理；Redis 锁与缓存  
+- **消息层**：预约领域事件经 RabbitMQ 异步通知、审计落库、超时号源回补（见 [8.9](#89-预约领域事件rabbitmq)）
 
 ---
 
@@ -250,6 +260,8 @@ DASHSCOPE_API_KEY=你的百炼API_KEY
 
 **状态**：待就诊 / 已签到 / 已完成 / 已取消等（以代码枚举为准）
 
+**领域事件（RabbitMQ）**：创建、取消、签到、超时、提醒、结算等状态变更在事务提交后发布异步事件，用于站内通知、审计与超时号源回补。详见 [8.9 预约领域事件（RabbitMQ）](#89-预约领域事件rabbitmq)。
+
 ### 8.5 到院签到与就诊
 
 - 签到：更新 `check_in_status` 等字段（以当前 schema 为准）  
@@ -282,6 +294,72 @@ DASHSCOPE_API_KEY=你的百炼API_KEY
 
 - 医生预约详情页展示患者档案摘要  
 - 线上问诊 `PatientContextForm` 在无本地缓存时自动从档案预填病史/过敏/用药  
+
+### 8.9 预约领域事件（RabbitMQ）
+
+预约业务在**数据库事务提交后**通过 RabbitMQ 解耦三类副作用：用户站内通知、事件审计、超时号源回补。实现包：`com.medical.messaging`（入口见 `package-info.java`）。
+
+**事件类型**（`AppointmentEventType`）
+
+| 类型 | 典型触发 |
+|------|----------|
+| `CREATED` | 预约创建成功 |
+| `CANCELLED` | 用户/管理员取消 |
+| `CHECKED_IN` | 到院签到 |
+| `EXPIRED` | 定时任务将待就诊置为超时 |
+| `REMINDER` | 就诊前提醒 |
+| `SETTLED` / `BILL_UNPAID` | 账单结算联动 |
+
+**发布链路**
+
+```
+AppointmentServiceImpl 等业务
+  → AppointmentEventBridge（构造 Envelope）
+  → Spring AppointmentDomainEvent
+  → AppointmentEventAfterCommitListener（AFTER_COMMIT）
+  → RabbitAppointmentEventPublisher → Topic Exchange
+```
+
+**消费队列**（`RabbitMqTopology`）
+
+| 队列 | 消费者 | 职责 |
+|------|--------|------|
+| `appointment.notification` | `AppointmentNotificationConsumer` | 写入 `user_notification`（患者/医生通知） |
+| `appointment.slot-restore` | `AppointmentSlotRestoreConsumer` | 仅 `EXPIRED`：回补 `appointment_slot.available_slots` |
+| `appointment.audit` | `AppointmentAuditConsumer` | 写入 `appointment_event_audit` |
+
+各业务队列绑定死信交换机，失败重试耗尽后进入 `.dlq` 队列（需人工排查）。
+
+**幂等与并发**
+
+- 消费端：`IdempotentConsumerExecutor` + Redis `SET NX`；业务失败 `release()` 键以便重试；Redis 不可用则 `nack` 重入队  
+- 超时：`updateStatusIf(PENDING→EXPIRED)` 仅首实例发布事件；`eventId` 稳定为 `APPOINTMENT_EXPIRED:{id}`  
+- 签到：`checkInIfPending` 条件更新，避免与超时任务竞态  
+- 取消：同步 `increaseAvailableSlots`；超时：异步 slot-restore（双路径，取消不重复走 MQ）
+
+**定时任务**
+
+| 类 | 作用 |
+|----|------|
+| `AppointmentExpireScheduler` | 扫描待就诊超时 → 条件更新 → 发布 `EXPIRED` |
+| `AppointmentReminderScheduler` | 扫描临近就诊 → 发布 `REMINDER`（去重在 Consumer 成功后写 Redis） |
+
+**配置**
+
+`application.yml` → `medical.messaging.enabled`（环境变量 `MEDICAL_MESSAGING_ENABLED`，默认 `true`）。关闭后使用 `NoOpAppointmentEventPublisher`，不注册 Listener/Consumer。
+
+**相关表与接口**
+
+| 项 | 说明 |
+|----|------|
+| `user_notification` | 站内通知 |
+| `appointment_event_audit` | 事件审计 |
+| `GET /api/notification/list` | 当前用户通知列表 |
+| `PUT /api/notification/{id}/read` | 标记已读 |
+
+已有库升级：执行 `docs/sql/patches/20260603_messaging_tables.sql`。
+
+**深入阅读**（本地 `interview/`，通常 gitignore）：[09-RabbitMQ-预约领域事件.md](../interview/09-RabbitMQ-预约领域事件.md)
 
 ---
 
@@ -406,6 +484,7 @@ Intake → Diagnosis ⇄ Intake(信息不足时回退) → Treatment → Coding 
 管理员登录 → 创建排班 → 生成号源
     → 患者登录 → 创建预约 → 签到
     → 医生接诊 / 问诊 → 开处方 → 药师发药 → 支付（按模块实现）
+    → （可选）患者端 GET /api/notification/list 查看预约通知
 ```
 
 ### 11.4 自动化测试
@@ -416,6 +495,8 @@ mvn test
 ```
 
 图谱 / 症状相关：`SymptomResolverSynonymTest`、`SymptomResolverGoldenEvaluatorTest`（后者需 Neo4j + API Key）。
+
+消息相关：`IdempotentMessageHandlerTest`、`AppointmentEventFactoryTest`、`AppointmentExpireSchedulerTest`、`MessagingAutoConfigurationTest`（无需真实 Broker，Mock/切片测试为主）。
 
 ---
 
@@ -442,13 +523,13 @@ mvn test
          ├─ /        → 前端静态 (dist)
          └─ /api     → Java :8080
 
-同机 Docker：postgres + neo4j + redis（勿将 5432/7687 暴露公网）
+同机 Docker：postgres + neo4j + redis + rabbitmq（勿将 5432/7687/5672 暴露公网）
 ```
 
 ### 13.2 服务器步骤摘要
 
 1. 安装 Docker、JDK 17、Nginx  
-2. `cd infra && docker compose up -d postgres neo4j redis`  
+2. `cd infra && docker compose up -d postgres neo4j redis rabbitmq`  
 3. 执行 `docs/sql/schema.sql`  
 4. 配置 `java/.env.local`（或 systemd `EnvironmentFile`）  
 5. `mvn -f java/pom.xml package -DskipTests && java -jar java/target/*.jar`  
@@ -464,6 +545,7 @@ mvn test
 cd infra
 docker compose ps
 docker compose logs -f postgres
+docker compose logs -f rabbitmq
 docker compose restart neo4j
 ```
 
@@ -482,6 +564,9 @@ docker compose restart neo4j
 | 缺业务表 | 执行 `docs/sql/schema.sql` |
 | 向量索引未就绪 | 配置 Key 后调用 `POST /api/v1/kg/symptom/index/rebuild` |
 | Docker 拉镜像慢 | 见附录镜像加速；或改用官方镜像名 |
+| Java 启动报 RabbitMQ 连接失败 | `docker compose ps` 确认 `rabbitmq` 健康；或设 `MEDICAL_MESSAGING_ENABLED=false` 临时关闭 |
+| 预约成功但无站内通知 | 检查 `MEDICAL_MESSAGING_ENABLED`、Rabbit 队列是否有堆积、Consumer 日志与 `user_notification` 表 |
+| 升级库缺通知/审计表 | 执行 `docs/sql/patches/20260603_messaging_tables.sql` |
 
 ---
 
@@ -505,7 +590,8 @@ docker compose restart neo4j
 | 文件 | 用途 |
 |------|------|
 | `docs/sql/README.md` | 脚本索引与部署顺序 |
-| `docs/sql/schema.sql` | **权威**全量建表（18 表） |
+| `docs/sql/schema.sql` | **权威**全量建表（20 表） |
+| `docs/sql/patches/20260603_messaging_tables.sql` | 已有库追加通知/审计表 |
 | `docs/sql/generate_slots.sql` | 号源批量生成（运维） |
 | `docs/sql/seed_schedule_perf.sql` | 排班压测种子（开发） |
 
@@ -515,6 +601,8 @@ docker compose restart neo4j
 |------|------|
 | 启动类 | `java/.../ClinicalDecisionApplication.java` |
 | 预约服务 | `java/.../service/impl/AppointmentServiceImpl.java` |
+| 预约领域事件 / MQ | `java/.../messaging/` |
+| 用户通知 | `java/.../controller/NotificationController.java` |
 | Agent | `java/.../agent/`、`java/.../graph/` |
 | 症状解析 | `java/.../service/kg/symptom/` |
 | 图谱 | `java/.../knowledgegraph/` |
@@ -526,9 +614,10 @@ docker compose restart neo4j
 
 | 文档 | 说明 |
 |------|------|
-| [../interview/README.md](../interview/README.md) | 本地面试索引（含 01–06 篇目） |
+| [../interview/README.md](../interview/README.md) | 本地面试索引（含 01–09 篇目） |
+| [../interview/09-RabbitMQ-预约领域事件.md](../interview/09-RabbitMQ-预约领域事件.md) | 预约 MQ 架构、面试问答与 Code Review 对照（本地） |
 | [医院排班查询接口性能优化项目.md](医院排班查询接口性能优化项目.md) | 排班接口 Redis 缓存与压测（可公开） |
 
 ---
 
-*文档版本：2026-05，与当前仓库结构（Java + 前端 + Docker 基础设施）对齐。*
+*文档版本：2026-06，与当前仓库结构（Java + 前端 + Docker 基础设施 + RabbitMQ 预约事件）对齐。*

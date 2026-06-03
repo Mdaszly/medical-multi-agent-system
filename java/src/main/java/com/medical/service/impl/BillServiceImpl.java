@@ -12,6 +12,7 @@ import com.medical.exception.ThrowUtils;
 import com.medical.mapper.AppointmentMapper;
 import com.medical.mapper.BillMapper;
 import com.medical.mapper.FeeItemMapper;
+import com.medical.messaging.appointment.AppointmentEventBridge;
 import com.medical.model.dto.bill.BillGenerateRequest;
 import com.medical.model.dto.bill.BillQueryRequest;
 import com.medical.model.entity.Appointment;
@@ -53,6 +54,7 @@ public class BillServiceImpl implements BillService {
     private final AppointmentMapper appointmentMapper;
     private final FeeItemService feeItemService;
     private final RedisCacheUtil redisCacheUtil;
+    private final AppointmentEventBridge appointmentEventBridge;
 
     private static final String BILL_NO_PREFIX = "BILL";
     private static final String STATUS_UNPAID = "UNPAID";
@@ -384,6 +386,7 @@ public class BillServiceImpl implements BillService {
         appointment.setStatus(AppointmentConstant.APPOINTMENT_STATUS_SETTLED);
         appointment.setUpdateTime(LocalDateTime.now());
         appointmentMapper.updateById(appointment);
+        appointmentEventBridge.publishSettled(appointment, oldStatus, "BILL_PAID");
         // #region agent log
         agentDebugLog("D", "BillServiceImpl.settleAppointmentAfterBillPaid",
                 "appointment settled after bill paid",

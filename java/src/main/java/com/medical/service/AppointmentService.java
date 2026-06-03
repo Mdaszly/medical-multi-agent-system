@@ -38,4 +38,9 @@ public interface AppointmentService {
     List<DepartmentDateStatusVO> listDepartmentWeekStatus(String department, LocalDate startDate, int days);
 
     List<DepartmentDoctorBookingVO> listDepartmentDoctorBooking(String department, LocalDate scheduleDate);
+
+    /**
+     * 补偿回填诊断/结算状态，并在事务提交后发布领域事件。
+     */
+    void reconcileAppointmentData(Long appointmentId);
 }

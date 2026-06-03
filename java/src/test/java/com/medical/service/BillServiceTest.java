@@ -1,5 +1,7 @@
 package com.medical.service;
 
+import com.medical.common.RedisCacheUtil;
+import com.medical.messaging.appointment.AppointmentEventBridge;
 import com.medical.model.dto.bill.BillGenerateRequest;
 import com.medical.model.entity.FeeItem;
 import com.medical.model.vo.BillVO;
@@ -17,6 +19,7 @@ import org.mockito.MockitoAnnotations;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -36,6 +39,12 @@ class BillServiceTest {
 
     @Mock
     private FeeItemService feeItemService;
+
+    @Mock
+    private RedisCacheUtil redisCacheUtil;
+
+    @Mock
+    private AppointmentEventBridge appointmentEventBridge;
 
     @InjectMocks
     private BillServiceImpl billService;
@@ -83,6 +92,8 @@ class BillServiceTest {
         bill.setStatus("UNPAID");
 
         when(billMapper.selectById(anyLong())).thenReturn(bill);
+        when(billMapper.updateById(any())).thenReturn(1);
+        when(feeItemMapper.selectByBillId(anyLong())).thenReturn(Collections.emptyList());
 
         assertDoesNotThrow(() -> billService.payBill(1L, new BigDecimal("56.00")));
     }

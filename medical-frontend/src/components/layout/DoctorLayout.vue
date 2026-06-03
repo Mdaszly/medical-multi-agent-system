@@ -2,6 +2,7 @@
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { House, Calendar, Document, Tickets, SwitchButton } from '@element-plus/icons-vue'
+import NotificationBell from '@/components/notification/NotificationBell.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -51,6 +52,7 @@ const handleLogout = () => {
           <h3>{{ route.meta.title || '医生端' }}</h3>
         </div>
         <div class="header-right">
+          <NotificationBell role="doctor" />
           <el-dropdown>
             <span class="user-info">
               <el-avatar :size="32" :src="''" style="margin-right: 8px; background: #06b6d4;" />
