@@ -27,9 +27,9 @@
 
 | 层级 | 技术 |
 |------|------|
-| 后端 | Java 17 · Spring Boot 3 · MyBatis-Plus · Sa-Token · Spring AMQP · Spring AI |
+| 后端 | Java 17 · Spring Boot 3 · MyBatis-Plus · Sa-Token · Spring AI |
 | 数据 | PostgreSQL 16（业务）· Neo4j（知识图谱）· Redis（锁 / 缓存 / 会话 / MQ 幂等） |
-| 消息 | RabbitMQ 3（Topic 交换机 · 手动 ack · 死信队列） |
+| 消息 | RabbitMQ 3 · Spring AMQP（Topic 交换机 · 手动 ack · 死信队列） |
 | AI | 阿里云百炼 DashScope（`qwen-max` / `qwen-turbo` / Embedding） |
 | 前端 | Vue 3 · TypeScript · Vite · Element Plus · Pinia |
 | 部署 | Docker Compose（PostgreSQL + Neo4j + Redis + RabbitMQ） |
