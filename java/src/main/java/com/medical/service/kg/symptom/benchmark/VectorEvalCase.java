@@ -1,4 +1,4 @@
-package com.medical.service.kg.symptom.eval;
+package com.medical.service.kg.symptom.benchmark;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;

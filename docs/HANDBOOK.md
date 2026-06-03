@@ -440,6 +440,12 @@ Intake → Diagnosis ⇄ Intake(信息不足时回退) → Treatment → Coding 
 - `POST /api/v1/kg/symptom/resolve` — body: `{"text":"我最近经常头疼"}`  
 - `POST /api/v1/kg/symptom/index/rebuild` — 重建向量索引（需 API Key）  
 
+**评测 API**（包 `com.medical.service.kg.symptom.benchmark`，Controller `SymptomRecallBenchmarkController`）
+
+- `POST /api/v1/kg/symptom/eval/vector-topk` — 向量 Top-K 召回评测  
+- `POST /api/v1/kg/symptom/eval/synonym-only` — 同义词 baseline  
+- `POST /api/v1/kg/symptom/eval/compare` — 并排对比 Recall 提升  
+
 **评测资源**：`java/src/test/resources/kg/symptom_resolver_golden.json`、`java/src/main/resources/kg/vector_topk_eval.json`
 
 ---
@@ -605,6 +611,7 @@ docker compose restart neo4j
 | 用户通知 | `java/.../controller/NotificationController.java` |
 | Agent | `java/.../agent/`、`java/.../graph/` |
 | 症状解析 | `java/.../service/kg/symptom/` |
+| 症状召回评测 | `java/.../service/kg/symptom/benchmark/` |
 | 图谱 | `java/.../knowledgegraph/` |
 | 前端路由 | `medical-frontend/src/router/` |
 

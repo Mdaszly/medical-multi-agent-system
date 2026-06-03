@@ -1,4 +1,4 @@
-package com.medical.service.kg.symptom.eval;
+package com.medical.service.kg.symptom.benchmark;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.core.io.ClassPathResource;
@@ -25,7 +25,7 @@ public class VectorEvalDatasetLoader {
         try (InputStream in = new ClassPathResource(classpathLocation).getInputStream()) {
             return objectMapper.readValue(in, VectorEvalDataset.class);
         } catch (Exception e) {
-            throw new IllegalStateException("加载向量评测集失败: " + classpathLocation, e);
+            throw new IllegalStateException("加载向量评测集失�? " + classpathLocation, e);
         }
     }
 }

@@ -1,9 +1,8 @@
-package com.medical.service.kg.symptom.eval;
+package com.medical.service.kg.symptom.benchmark;
 
 import lombok.Builder;
 import lombok.Data;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -15,8 +14,15 @@ public class VectorTopKEvalReport {
     private String datasetVersion;
     private int totalCases;
     private int totalLabels;
+
+    /** ?????VECTOR??????? SYNONYM_ONLY???? baseline? */
+    private String evalMode;
+
     private boolean vectorIndexReady;
     private String embeddingModel;
+
+    /** ???-only ??????symptom-synonyms.json ??? */
+    private Integer synonymTableSize;
 
     private double macroPrecisionAtK;
     private double macroRecallAtK;

@@ -1,13 +1,8 @@
 package com.medical.controller;
 
-import com.medical.model.dto.kg.VectorTopKEvalRequest;
 import com.medical.service.kg.clinical.ClinicalSpanExtractionResult;
 import com.medical.service.kg.clinical.ClinicalSpanExtractor;
 import com.medical.service.kg.symptom.*;
-import com.medical.service.kg.symptom.eval.SymptomVectorTopKEvaluator;
-import com.medical.service.kg.symptom.eval.VectorEvalDataset;
-import com.medical.service.kg.symptom.eval.VectorEvalDatasetLoader;
-import com.medical.service.kg.symptom.eval.VectorTopKEvalReport;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +21,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/kg/symptom")
 @RequiredArgsConstructor
-@Tag(name = "症状语义解析", description = "向量召回 + LLM 封闭词表消歧（AI 工程化）")
+@Tag(name = "症状语义解析", description = "向量召回 + LLM 封闭词表消歧")
 public class SymptomResolverController {
 
     private final SymptomResolver symptomResolver;
@@ -34,8 +29,6 @@ public class SymptomResolverController {
     private final SymptomVectorIndexBootstrap vectorIndexBootstrap;
     private final InMemorySymptomVectorIndex vectorIndex;
     private final SymptomVectorSearchService vectorSearchService;
-    private final SymptomVectorTopKEvaluator vectorTopKEvaluator;
-    private final VectorEvalDatasetLoader datasetLoader;
     private final SymptomVocabularyService vocabularyService;
 
     @PostMapping("/resolve")
@@ -103,7 +96,7 @@ public class SymptomResolverController {
     }
 
     @GetMapping("/vector/search")
-    @Operation(summary = "仅向量 Top-K 检索（评测用，不经过同义词/LLM）")
+    @Operation(summary = "仅向量 Top-K 检索（调试/评测辅助，不经过同义词/LLM）")
     public ResponseEntity<Map<String, Object>> vectorSearch(
             @RequestParam String phrase,
             @RequestParam(defaultValue = "5") int topK) {
@@ -119,36 +112,5 @@ public class SymptomResolverController {
                 "topK", topK,
                 "vectorIndexReady", vectorSearchService.isIndexReady(),
                 "candidates", items));
-    }
-
-    @PostMapping("/eval/vector-topk")
-    @Operation(summary = "运行向量 Top-K 评测集并输出召回率等指标")
-    public ResponseEntity<Object> evalVectorTopK(@RequestBody(required = false) VectorTopKEvalRequest request) {
-        VectorTopKEvalRequest req = request != null ? request : new VectorTopKEvalRequest();
-        VectorEvalDataset dataset = req.getDatasetPath() != null && !req.getDatasetPath().isBlank()
-                ? datasetLoader.load(req.getDatasetPath())
-                : datasetLoader.loadDefault();
-
-        boolean details = Boolean.TRUE.equals(req.getIncludeCaseDetails());
-        if (req.getKValues() != null && !req.getKValues().isEmpty()) {
-            Map<Integer, VectorTopKEvalReport> grid = new LinkedHashMap<>();
-            for (Integer k : req.getKValues()) {
-                grid.put(k, vectorTopKEvaluator.evaluate(k, dataset, false));
-            }
-            Map<String, Object> body = new LinkedHashMap<>();
-            body.put("mode", "k_grid");
-            body.put("reports", grid);
-            return ResponseEntity.ok(body);
-        }
-        int k = req.getK() != null ? req.getK() : 5;
-        return ResponseEntity.ok(vectorTopKEvaluator.evaluate(k, dataset, details));
-    }
-
-    @GetMapping("/eval/vector-topk")
-    @Operation(summary = "GET 方式运行向量 Top-K 评测（默认 K=5）")
-    public ResponseEntity<VectorTopKEvalReport> evalVectorTopKGet(
-            @RequestParam(defaultValue = "5") int k,
-            @RequestParam(defaultValue = "false") boolean includeCaseDetails) {
-        return ResponseEntity.ok(vectorTopKEvaluator.evaluate(k, datasetLoader.loadDefault(), includeCaseDetails));
     }
 }
